@@ -80,7 +80,7 @@
   #findBox { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:20; display:flex; align-items:flex-start; justify-content:center; padding:4vh 8px; overflow:auto; }
   #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
   @media print { #findBox { display:none !important; } }
-  @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } .noprint { visibility:hidden !important; } }
+  @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } #receipt .noprint, #receipt .noprint * { display:none !important; } }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
 </style>
 </head>
