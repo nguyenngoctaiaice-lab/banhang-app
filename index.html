@@ -188,9 +188,15 @@
 
 <section class="tab" id="count">
   <h2>Kiểm kê kho</h2>
-  <p class="empty" style="margin-top:0">Nhập số đếm thực tế. Món để trống sẽ được bỏ qua. Sau khi lưu, đợt kiểm kê ở trạng thái "chờ cân đối": tồn kho chỉ được điều chỉnh khi admin bấm "Thực hiện cân đối" (tab Quản trị).</p>
+  <p class="empty" style="margin-top:0">Chọn mặt hàng, nhập số đếm thực tế rồi bấm "Thêm dòng". Bấm vào một dòng đã thêm để sửa lại. Sau khi lưu, đợt kiểm kê ở trạng thái "chờ cân đối": tồn kho chỉ được điều chỉnh khi admin bấm "Thực hiện cân đối" (tab Quản trị).</p>
+  <div class="row">
+    <div><label>Mặt hàng</label><select id="cntItem"></select></div>
+    <div><label id="cntBookLbl">Sổ sách</label><input id="cntBook" disabled></div>
+    <div><label>Thực tế</label><input id="cntActual" type="text" inputmode="decimal" autocomplete="off" placeholder="VD: 12 hoặc 2,5"></div>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="btn ghost" id="btnCntAdd">Thêm dòng</button><button class="btn ghost" id="btnCntCancel" hidden>Hủy sửa</button></div>
   <div id="countBody" class="wrap"></div>
-  <div class="row" style="margin-top:12px"><button class="btn" id="btnCountSave">Lưu kiểm kê</button></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="btnCountSave">Lưu kiểm kê</button><button class="btn ghost" id="btnCountClear">Xóa tất cả các dòng</button></div>
 </section>
 
 <section class="tab" id="report">
@@ -445,7 +451,7 @@ async function enter() {
   const mine = TABS.filter(t => admin || t.roles.includes(USER.role));
   $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
   $('login').hidden = true; $('app').hidden = false;
-  resetOrder(); impLines = []; renderImp(); openTab(mine[0].id);
+  resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id);
 }
 function openTab(t) {
   if (t !== 'admin') applyTheme(getSettings().theme, getSettings().fx);
@@ -996,26 +1002,57 @@ async function loadStock() {
   } catch (e) { toast(e.message, true); }
 }
 $('btnStockRefresh').onclick = e => run(e.target, loadStock);
+let countRows = [], countLines = [], cntEditing = '';
+const cntRow = id => countRows.find(x => String(x.id) === String(id));
+function renderCountForm() {
+  const used = new Set(countLines.map(l => String(l.id)));
+  $('cntItem').innerHTML = '<option value="">-- Chọn mặt hàng --</option>' + countRows.filter(x => !used.has(String(x.id)) || String(x.id) === String(cntEditing))
+    .map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  $('cntItem').value = cntEditing || ''; $('cntItem').disabled = !!cntEditing;
+  const x = cntRow($('cntItem').value); $('cntBook').value = x ? fmtQty(x.qty) + ' ' + x.unit : '';
+  $('btnCntAdd').textContent = cntEditing ? 'Cập nhật dòng' : 'Thêm dòng'; $('btnCntCancel').hidden = !cntEditing;
+}
+function renderCountLines() {
+  $('countBody').innerHTML = countLines.length ? `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th></th></tr>
+    ${countLines.map(l => { const x = cntRow(l.id), book = x ? x.qty : 0, d = Math.round((l.actual - book) * 1000) / 1000;
+      return `<tr class="hrow" data-id="${esc(l.id)}"><td>${esc(l.name)}</td><td class="n">${fmtQty(book)}</td><td class="n">${fmtQty(l.actual)}</td><td class="n ${d < 0 ? 'neg' : d > 0 ? 'pos' : ''}">${fmtDiff(d)}</td>
+      <td><button class="btn ghost sm" data-del="${esc(l.id)}">Xóa</button></td></tr>`; }).join('')}</table>
+    <div class="empty" style="padding:6px 0">Bấm vào dòng để sửa số thực tế.</div>` : '<div class="empty">Chưa có dòng nào.</div>';
+}
+function cntReset() { cntEditing = ''; $('cntActual').value = ''; renderCountForm(); renderCountLines(); }
 async function loadCount() {
   try {
-    const r = await api('getInventoryReport');
-    $('countBody').innerHTML = `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th>Thực tế</th><th class="n">Chênh lệch</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${fmtQty(x.qty)} ${esc(x.unit)}</td><td><input type="text" inputmode="decimal" autocomplete="off" data-id="${esc(x.id)}" data-book="${x.qty}" style="width:100px"></td><td class="n cdiff">—</td></tr>`).join('')}</table>`;
+    const r = await api('getInventoryReport'); countRows = r.rows;
+    countLines = countLines.filter(l => cntRow(l.id)); if (cntEditing && !cntRow(cntEditing)) cntEditing = '';
+    renderCountForm(); renderCountLines();
   } catch (e) { toast(e.message, true); }
 }
-/* Gõ số thực tế -> hiện ngay chênh lệch = Thực tế - Sổ sách */
-$('countBody').addEventListener('input', e => {
-  const i = e.target; if (!i.dataset || i.dataset.book === undefined) return;
-  fmtField(i, true, e.data);
-  const c = i.closest('tr').querySelector('.cdiff');
-  if (i.value.trim() === '') { c.textContent = '—'; c.className = 'n cdiff'; return; }
-  const d = parseNum(i.value) - Number(i.dataset.book);
-  c.textContent = fmtDiff(Math.round(d * 1000) / 1000); c.className = 'n cdiff ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : '');
+$('cntItem').addEventListener('change', () => { const x = cntRow($('cntItem').value); $('cntBook').value = x ? fmtQty(x.qty) + ' ' + x.unit : ''; if (x) $('cntActual').focus(); });
+$('cntActual').addEventListener('input', e => fmtField(e.target, true, e.data));
+$('cntActual').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnCntAdd').click(); });
+$('btnCntAdd').onclick = () => {
+  const id = $('cntItem').value, v = $('cntActual').value.trim();
+  if (!id || v === '') return toast('Chọn mặt hàng và nhập số thực tế.', true);
+  const actual = parseNum(v), x = cntRow(id), l = countLines.find(z => String(z.id) === String(id));
+  if (l) l.actual = actual; else countLines.push({ id: x.id, name: x.name, actual });
+  cntReset(); $('cntItem').focus();
+};
+$('btnCntCancel').onclick = cntReset;
+$('countBody').addEventListener('click', e => {
+  const del = e.target.closest('button[data-del]');
+  if (del) { countLines = countLines.filter(l => String(l.id) !== del.dataset.del); if (String(cntEditing) === del.dataset.del) cntEditing = ''; cntReset(); return; }
+  const tr = e.target.closest('tr.hrow'); if (!tr) return;
+  const l = countLines.find(z => String(z.id) === tr.dataset.id); if (!l) return;
+  cntEditing = l.id; renderCountForm(); $('cntActual').value = fmtQty(l.actual); $('cntActual').focus(); $('cntItem').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
+$('btnCountClear').onclick = () => {
+  if (!countLines.length) return toast('Chưa có dòng nào để xóa.', true);
+  countLines = []; cntReset(); toast('Đã xóa tất cả các dòng.');
+};
 $('btnCountSave').onclick = e => run(e.target, async () => {
-  const rows = [...document.querySelectorAll('#countBody input')].map(i => ({ id: i.dataset.id, actual: i.value.trim() === '' ? '' : parseNum(i.value) }));
-  const r = await api('saveStocktake', rows);
-  toast(`Đã lưu kiểm kê ${r.count} món · chờ admin cân đối`); loadCount();
+  if (!countLines.length) throw new Error('Chưa có dòng nào để lưu.');
+  const r = await api('saveStocktake', countLines.map(l => ({ id: l.id, actual: l.actual })));
+  toast(`Đã lưu kiểm kê ${r.count} món · chờ admin cân đối`); countLines = []; cntEditing = ''; $('cntActual').value = ''; await loadCount();
 });
 
 /* ---------- Quản trị: kiểm kê & cân đối kho ---------- */
@@ -1024,6 +1061,21 @@ const skOf = id => skData.sessions.find(s => s.id === id);
 const skBox = id => $('skBody').querySelector(`details[data-id="${CSS.escape(id)}"] .rb`);
 const sgn = n => (n > 0 ? '+' : '') + money(n);
 const cls = n => n < 0 ? 'neg' : n > 0 ? 'pos' : '';
+const skRow = (ed, id) => ed.rows.find(x => String(x.id) === String(id));
+function skFormUpdate(id) {
+  const ed = skEdit[id], rb = skBox(id), used = new Set(ed.lines.map(l => String(l.id)));
+  rb.querySelector('[data-f="ni"]').innerHTML = '<option value="">-- Chọn mặt hàng --</option>' + ed.rows.filter(x => !used.has(String(x.id)) || String(x.id) === String(ed.editing)).map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  rb.querySelector('[data-f="ni"]').value = ed.editing || ''; rb.querySelector('[data-f="ni"]').disabled = !!ed.editing;
+  const x = skRow(ed, rb.querySelector('[data-f="ni"]').value); rb.querySelector('[data-f="nb"]').value = x ? fmtQty(x.qty) + ' ' + x.unit : '';
+  rb.querySelector('[data-a="add"]').textContent = ed.editing ? 'Cập nhật dòng' : 'Thêm dòng'; rb.querySelector('[data-a="ecancel"]').hidden = !ed.editing;
+}
+function skLines(id) {
+  const ed = skEdit[id], rb = skBox(id);
+  rb.querySelector('.sklines').innerHTML = ed.lines.length ? `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th></th></tr>
+    ${ed.lines.map(l => { const x = skRow(ed, l.id), book = x ? x.qty : 0, d = Math.round((l.actual - book) * 1000) / 1000;
+      return `<tr class="hrow" data-id="${esc(l.id)}"><td>${esc(l.name)}</td><td class="n">${fmtQty(book)}</td><td class="n">${fmtQty(l.actual)}</td><td class="n ${cls(d)}">${fmtDiff(d)}</td><td><button class="btn ghost sm" data-a="rm" data-i="${esc(l.id)}">Xóa</button></td></tr>`; }).join('')}</table>
+    <div class="empty" style="padding:6px 0">Bấm vào dòng để sửa số thực tế.</div>` : '<div class="empty">Chưa có dòng nào.</div>';
+}
 function paintSk(id) {
   const s = skOf(id), rb = skBox(id), ed = skEdit[id]; if (!s || !rb) return;
   if (!ed) {
@@ -1034,15 +1086,15 @@ function paintSk(id) {
         : '<button class="btn sm" data-a="apply">Thực hiện cân đối</button><button class="btn ghost sm" data-a="edit">Sửa</button><button class="btn ghost sm" data-a="del">Xóa</button>'}</div>`;
     return;
   }
-  rb.innerHTML = `<div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">Thực tế</th><th></th></tr>
-    ${ed.lines.map((l, i) => `<tr><td>${esc(l.name)}</td><td><input data-f="a" data-i="${i}" data-fmt="dec" inputmode="decimal" value="${esc(fmtQty(l.actual))}" style="min-width:90px"></td><td><button class="btn ghost sm" data-a="rm" data-i="${i}">Xóa dòng</button></td></tr>`).join('')}</table></div>
-    <div class="row" style="align-items:end;margin-top:8px">
-      <div><label>Thêm mặt hàng</label><select data-f="ni"><option value="">-- Chọn mặt hàng --</option>${DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select></div>
-      <div><label>Thực tế</label><input data-f="na" data-fmt="dec" inputmode="decimal"></div>
-      <button class="btn ghost" data-a="add" style="flex:0 0 auto">Thêm dòng</button></div>
+  rb.innerHTML = `<div class="row">
+      <div><label>Mặt hàng</label><select data-f="ni"></select></div>
+      <div><label>Sổ sách</label><input data-f="nb" disabled></div>
+      <div><label>Thực tế</label><input data-f="na" data-fmt="dec" inputmode="decimal" autocomplete="off" placeholder="VD: 12 hoặc 2,5"></div></div>
+    <div class="row" style="margin-top:10px"><button class="btn ghost" data-a="add">Thêm dòng</button><button class="btn ghost" data-a="ecancel" hidden>Hủy sửa</button></div>
+    <div class="sklines wrap"></div>
     <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Lưu thay đổi</button><button class="btn ghost" data-a="cancel">Hủy</button></div>`;
+  skFormUpdate(id); skLines(id);
 }
-function syncSk(id) { const rb = skBox(id), ed = skEdit[id]; if (rb && ed) rb.querySelectorAll('[data-f="a"]').forEach(i => ed.lines[+i.dataset.i].actual = i.value.trim() === '' ? '' : parseNum(i.value)); }
 async function loadSk(all) {
   if (all) { $('skFrom').value = ''; $('skTo').value = ''; }
   const open = new Set([...$('skBody').querySelectorAll('details[data-id][open]')].map(d => d.dataset.id));
@@ -1054,21 +1106,34 @@ async function loadSk(all) {
   r.sessions.forEach(s => paintSk(s.id));
 }
 $('skBody').addEventListener('input', e => { const f = e.target.dataset && e.target.dataset.fmt; if (f) fmtField(e.target, f === 'dec', e.data); });
+$('skBody').addEventListener('change', e => {
+  const sel = e.target.closest('select[data-f="ni"]'), det = sel && sel.closest('details[data-id]'); if (!det) return;
+  const id = det.dataset.id, ed = skEdit[id], x = ed && skRow(ed, sel.value); skBox(id).querySelector('[data-f="nb"]').value = x ? fmtQty(x.qty) + ' ' + x.unit : ''; if (x) skBox(id).querySelector('[data-f="na"]').focus();
+});
+$('skBody').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.f === 'na') e.target.closest('details').querySelector('[data-a="add"]').click(); });
+function skAdd(id) {
+  const ed = skEdit[id], rb = skBox(id), mid = rb.querySelector('[data-f="ni"]').value, v = rb.querySelector('[data-f="na"]').value.trim();
+  if (!mid || v === '') return toast('Chọn mặt hàng và nhập số thực tế.', true);
+  const actual = parseNum(v), x = skRow(ed, mid), l = ed.lines.find(z => String(z.id) === String(mid));
+  if (l) l.actual = actual; else ed.lines.push({ id: x.id, name: x.name, actual });
+  ed.editing = ''; rb.querySelector('[data-f="na"]').value = ''; skFormUpdate(id); skLines(id); rb.querySelector('[data-f="ni"]').focus();
+}
 $('skBody').addEventListener('click', e => {
-  const b = e.target.closest('button[data-a]'), det = b && b.closest('details[data-id]'); if (!det) return;
-  const id = det.dataset.id, a = b.dataset.a, s = skOf(id), after = async () => { await loadSk(false); const d = $('skBody').querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; };
-  if (a === 'edit') { skEdit[id] = { lines: s.lines.map(l => ({ id: l.itemId, name: l.name, actual: l.actual })) }; paintSk(id); }
-  else if (a === 'cancel') { delete skEdit[id]; paintSk(id); }
-  else if (a === 'rm') { syncSk(id); skEdit[id].lines.splice(+b.dataset.i, 1); paintSk(id); }
-  else if (a === 'add') {
-    syncSk(id); const rb = skBox(id), mid = rb.querySelector('[data-f="ni"]').value, v = rb.querySelector('[data-f="na"]').value;
-    if (!mid || v.trim() === '') return toast('Chọn mặt hàng và nhập số thực tế.', true);
-    skEdit[id].lines.push({ id: mid, name: DATA.menu.find(m => String(m.id) === String(mid)).name, actual: parseNum(v) }); paintSk(id);
+  const det = e.target.closest('details[data-id]'); if (!det || !skData) return;
+  const id = det.dataset.id, ed = skEdit[id], b = e.target.closest('button[data-a]'), after = async () => { await loadSk(false); const d = $('skBody').querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; };
+  if (!b) {   // bấm vào dòng trong lúc sửa -> đưa lên form để sửa
+    const tr = e.target.closest('tr.hrow'); if (!tr || !ed) return;
+    const l = ed.lines.find(z => String(z.id) === tr.dataset.id); if (!l) return;
+    ed.editing = l.id; skFormUpdate(id); const rb = skBox(id); rb.querySelector('[data-f="na"]').value = fmtQty(l.actual); rb.querySelector('[data-f="na"]').focus(); return;
   }
+  const a = b.dataset.a, s = skOf(id);
+  if (a === 'edit') run(b, async () => { const rows = (await api('getInventoryReport')).rows; skEdit[id] = { rows, editing: '', lines: s.lines.map(l => ({ id: l.itemId, name: l.name, actual: l.actual })) }; paintSk(id); });
+  else if (a === 'cancel') { delete skEdit[id]; paintSk(id); }
+  else if (a === 'ecancel') { ed.editing = ''; skBox(id).querySelector('[data-f="na"]').value = ''; skFormUpdate(id); }
+  else if (a === 'rm') { ed.lines = ed.lines.filter(l => String(l.id) !== b.dataset.i); if (String(ed.editing) === b.dataset.i) { ed.editing = ''; skBox(id).querySelector('[data-f="na"]').value = ''; } skFormUpdate(id); skLines(id); }
+  else if (a === 'add') skAdd(id);
   else if (a === 'save') run(b, async () => {
-    syncSk(id); const ed = skEdit[id];
     if (!ed.lines.length) throw new Error('Phải còn ít nhất 1 dòng. Muốn bỏ cả đợt hãy bấm Xóa.');
-    if (ed.lines.some(l => l.actual === '')) throw new Error('Có dòng chưa nhập số thực tế.');
     await api('adminUpdateStocktake', id, { items: ed.lines.map(l => ({ id: l.id, actual: l.actual })) }); toast('Đã sửa đợt kiểm kê.'); await after();
   });
   else if (a === 'del') { if (confirm('Xóa đợt kiểm kê này? Không thể hoàn tác.')) run(b, async () => { await api('adminDeleteStocktake', id); toast('Đã xóa đợt kiểm kê.'); await loadSk(false); }); }
