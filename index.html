@@ -37,6 +37,8 @@
   #menuPick { font-size:16px; padding:11px 9px; }
   .wrap { overflow-x:auto; }
   tr.hrow { cursor:pointer; } tr.hrow:hover td, tr.hrow:active td { background:var(--soft); }
+  table.zebra tr:nth-child(odd):not(:first-child) td { background:var(--soft); }
+  table.zebra tr.hrow:hover td, table.zebra tr.hrow:active td { background:color-mix(in srgb, var(--accent) 22%, #fff); }
   table { width:100%; border-collapse:collapse; }
   th, td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
   th { font-size:13px; color:var(--muted); font-weight:600; }
@@ -160,7 +162,7 @@
   <div class="row">
     <div><label>Nhà cung cấp</label><input id="impSupplier"></div>
     <div><label>Mặt hàng</label><select id="impItem"></select></div>
-    <div><label>Số lượng</label><input id="impQty" type="number" min="0" inputmode="decimal"></div>
+    <div><label>Số lượng</label><input id="impQty" type="text" inputmode="decimal" autocomplete="off" placeholder="VD: 1.000 hoặc 2,5"></div>
     <div><label>Giá nhập (đ)</label><input id="impCost" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 1.500.000"></div>
   </div>
   <div class="row" style="margin-top:10px"><button class="btn ghost" id="btnImpAdd">Thêm dòng</button></div>
@@ -846,21 +848,28 @@ $('admList').addEventListener('click', e => { const b = e.target.closest('button
 let impLines = [];
 function renderImp() {
   $('impList').innerHTML = impLines.length ? `<table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th class="n">Thành tiền</th></tr>
-    ${impLines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${l.qty}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.qty * l.unitCost)}</td></tr>`).join('')}
+    ${impLines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${fmtQty(l.qty)}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.qty * l.unitCost)}</td></tr>`).join('')}
     <tr><th colspan="3" class="n">Tổng</th><th class="n">${money(impLines.reduce((t, l) => t + l.qty * l.unitCost, 0))}</th></tr></table>` : '<div class="empty">Chưa có dòng nào.</div>';
 }
 const fillImpItems = () => { $('impItem').innerHTML = '<option value="">-- Chọn mặt hàng --</option>' + DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join(''); };
-/* Ô Giá nhập: tự thêm dấu chấm ngăn cách hàng nghìn khi gõ (1500000 -> 1.500.000) */
-const digits = v => String(v).replace(/\D/g, '');
-const groupDigits = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-$('impCost').addEventListener('input', e => {
-  const el = e.target, before = digits(el.value.slice(0, el.selectionStart || 0)).length, d = digits(el.value).replace(/^0+(?=\d)/, '');
-  el.value = groupDigits(d);
-  let pos = 0, seen = 0; while (pos < el.value.length && seen < before) { if (/\d/.test(el.value[pos])) seen++; pos++; }
+/* Ô số lượng / giá nhập: tự thêm dấu chấm hàng nghìn khi gõ (1500000 -> 1.500.000). Số lượng lẻ dùng dấu phẩy (2,5). */
+const fmtQty = n => (Number(n) || 0).toLocaleString('vi-VN', { maximumFractionDigits: 3 });
+const parseNum = v => Number(String(v).replace(/\./g, '').replace(',', '.')) || 0;
+function fmtField(el, dec, typed) {
+  let raw = el.value, caret = el.selectionStart == null ? raw.length : el.selectionStart;
+  if (dec && (typed === '.' || typed === ',') && raw[caret - 1] === typed) raw = raw.slice(0, caret - 1) + ',' + raw.slice(caret);   // gõ . hoặc , = dấu thập phân
+  const keep = dec ? /[^\d,]/g : /\D/g, before = raw.slice(0, caret).replace(keep, '').length;
+  const clean = raw.replace(keep, ''), ci = clean.indexOf(',');
+  let ip = (ci < 0 ? clean : clean.slice(0, ci)).replace(/^0+(?=\d)/, ''), fp = ci < 0 ? '' : clean.slice(ci + 1).replace(/,/g, '').slice(0, 3);
+  if (ci >= 0 && ip === '') ip = '0';
+  el.value = ip.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (ci >= 0 ? ',' + fp : '');
+  let pos = 0, seen = 0; while (pos < el.value.length && seen < before) { if (/[\d,]/.test(el.value[pos])) seen++; pos++; }
   try { el.setSelectionRange(pos, pos); } catch (x) {}
-});
+}
+$('impQty').addEventListener('input', e => fmtField(e.target, true, e.data));
+$('impCost').addEventListener('input', e => fmtField(e.target, false, e.data));
 $('btnImpAdd').onclick = () => {
-  const id = $('impItem').value, qty = Number($('impQty').value), costTxt = digits($('impCost').value), unitCost = Number(costTxt);
+  const id = $('impItem').value, qty = parseNum($('impQty').value), costTxt = $('impCost').value.replace(/\D/g, ''), unitCost = Number(costTxt);
   if (!id || !(qty > 0) || costTxt === '') return toast('Chọn mặt hàng, nhập số lượng và giá nhập.', true);
   impLines.push({ id, name: DATA.menu.find(m => String(m.id) === String(id)).name, qty, unitCost }); $('impQty').value = ''; $('impCost').value = ''; renderImp();
 };
@@ -870,21 +879,77 @@ $('btnImpSave').onclick = e => run(e.target, async () => {
   $('impSupplier').value = ''; $('impItem').value = ''; $('impQty').value = ''; $('impCost').value = '';   // làm mới để nhập phiếu mới
 });
 
-/* ---------- Lịch sử nhập hàng ---------- */
-function renderImpHist(el, r) {
+/* ---------- Lịch sử nhập hàng (ADMIN được sửa / xóa / thêm dòng) ---------- */
+const impOf = (el, id) => el._r.receipts.find(p => p.id === id);
+const impBox = (el, id) => el.querySelector(`details[data-id="${CSS.escape(id)}"] .rb`);
+function paintRb(el, id) {
+  const p = impOf(el, id), rb = impBox(el, id), ed = el._edit[id], admin = USER.role === 'ADMIN'; if (!p || !rb) return;
+  if (!ed) {
+    rb.innerHTML = `<div class="empty" style="padding:4px 0">Nhà cung cấp: ${esc(p.supplier || '—')} · Nhân viên: ${esc(p.staff)}</div>
+      <div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th class="n">Thành tiền</th></tr>
+      ${p.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${fmtQty(l.qty)}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table></div>
+      ${admin ? '<div class="row" style="margin-top:8px"><button class="btn ghost sm" data-a="edit">Sửa phiếu</button><button class="btn ghost sm" data-a="del">Xóa phiếu</button></div>' : ''}`;
+    return;
+  }
+  rb.innerHTML = `<div><label>Nhà cung cấp</label><input data-f="sup" value="${esc(ed.supplier)}"></div>
+    <div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th></th></tr>
+    ${ed.lines.map((l, i) => `<tr><td>${esc(l.name)}</td><td><input data-f="q" data-i="${i}" data-fmt="dec" inputmode="decimal" value="${esc(fmtQty(l.qty))}" style="min-width:80px"></td>
+      <td><input data-f="c" data-i="${i}" data-fmt="int" inputmode="numeric" value="${esc(money(l.unitCost))}" style="min-width:110px"></td>
+      <td><button class="btn ghost sm" data-a="rm" data-i="${i}">Xóa dòng</button></td></tr>`).join('')}</table></div>
+    <div class="row" style="align-items:end;margin-top:8px">
+      <div><label>Thêm mặt hàng</label><select data-f="ni">${'<option value="">-- Chọn mặt hàng --</option>' + DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select></div>
+      <div><label>Số lượng</label><input data-f="nq" data-fmt="dec" inputmode="decimal"></div>
+      <div><label>Giá nhập (đ)</label><input data-f="nc" data-fmt="int" inputmode="numeric"></div>
+      <button class="btn ghost" data-a="add" style="flex:0 0 auto">Thêm dòng</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Lưu thay đổi</button><button class="btn ghost" data-a="cancel">Hủy</button></div>`;
+}
+function syncRb(el, id) {
+  const ed = el._edit[id], rb = impBox(el, id); if (!ed || !rb) return;
+  ed.supplier = rb.querySelector('[data-f="sup"]').value;
+  rb.querySelectorAll('[data-f="q"]').forEach(i => ed.lines[+i.dataset.i].qty = parseNum(i.value));
+  rb.querySelectorAll('[data-f="c"]').forEach(i => ed.lines[+i.dataset.i].unitCost = parseNum(i.value));
+}
+function renderImpHist(el, r, reload) {
+  el._r = r; el._reload = reload; el._edit = {};
+  if (!el._bound) {
+    el._bound = true;
+    el.addEventListener('input', e => { const f = e.target.dataset && e.target.dataset.fmt; if (f) fmtField(e.target, f === 'dec', e.data); });
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button[data-a]'), det = b && b.closest('details[data-id]'); if (!det) return;
+      const id = det.dataset.id, a = b.dataset.a, p = impOf(el, id), rb = impBox(el, id);
+      if (a === 'edit') { el._edit[id] = { supplier: p.supplier, lines: p.lines.map(l => ({ id: l.itemId, name: l.name, qty: l.qty, unitCost: l.unitCost })) }; paintRb(el, id); }
+      else if (a === 'cancel') { delete el._edit[id]; paintRb(el, id); }
+      else if (a === 'rm') { syncRb(el, id); el._edit[id].lines.splice(+b.dataset.i, 1); paintRb(el, id); }
+      else if (a === 'add') {
+        syncRb(el, id);
+        const mid = rb.querySelector('[data-f="ni"]').value, q = parseNum(rb.querySelector('[data-f="nq"]').value), cTxt = rb.querySelector('[data-f="nc"]').value.replace(/\D/g, '');
+        if (!mid || !(q > 0) || cTxt === '') return toast('Chọn mặt hàng, nhập số lượng và giá nhập.', true);
+        el._edit[id].lines.push({ id: mid, name: DATA.menu.find(m => String(m.id) === String(mid)).name, qty: q, unitCost: Number(cTxt) }); paintRb(el, id);
+      }
+      else if (a === 'save') run(b, async () => {
+        syncRb(el, id); const ed = el._edit[id];
+        if (!ed.lines.length) throw new Error('Phiếu phải còn ít nhất 1 dòng. Muốn bỏ cả phiếu hãy bấm Xóa phiếu.');
+        if (ed.lines.some(l => !(l.qty > 0) || l.unitCost < 0)) throw new Error('Số lượng phải lớn hơn 0.');
+        await api('adminUpdateImport', id, { supplier: ed.supplier, items: ed.lines.map(({ id, qty, unitCost }) => ({ id, qty, unitCost })) });
+        toast('Đã sửa phiếu ' + id); await el._reload(); const d = el.querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true;
+      });
+      else if (a === 'del') {
+        if (!confirm('Xóa cả phiếu nhập ' + id + '? Tồn kho sẽ được tính lại và không thể hoàn tác.')) return;
+        run(b, async () => { await api('adminDeleteImport', id); toast('Đã xóa phiếu ' + id); await el._reload(); });
+      }
+    });
+  }
   if (!r.receipts.length) { el.innerHTML = '<div class="empty">Không có phiếu nhập nào trong khoảng này.</div>'; return; }
   el.innerHTML = `<div class="kpis"><div class="kpi"><span>Số phiếu</span><b>${r.count}</b></div><div class="kpi"><span>Tổng tiền nhập</span><b>${money(r.total)}đ</b></div></div>` +
-    r.receipts.map(p => `<details class="fold"><summary>${esc(p.time)} · ${esc(p.id)} · <b>${money(p.total)}đ</b></summary>
-      <div class="empty" style="padding:4px 0">Nhà cung cấp: ${esc(p.supplier || '—')} · Nhân viên: ${esc(p.staff)}</div>
-      <div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th class="n">Thành tiền</th></tr>
-      ${p.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${l.qty}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table></div></details>`).join('');
+    r.receipts.map(p => `<details class="fold" data-id="${esc(p.id)}"><summary>${esc(p.time)} · ${esc(p.id)} · <b>${money(p.total)}đ</b></summary><div class="rb"></div></details>`).join('');
+  r.receipts.forEach(p => paintRb(el, p.id));
 }
 /* Ngày kết thúc chỉ chọn được trong cùng tháng với ngày bắt đầu (máy chủ cũng kiểm tra lại) */
 function limitImpTo() {
   const f = $('impFrom').value; if (!f) return;
-  const [y, m] = f.split('-').map(Number), last = new Date(y, m, 0).getDate(), end = `${f.slice(0, 7)}-${String(last).padStart(2, '0')}`;
+  const [y, m] = f.split('-').map(Number), last = new Date(y, m, 0).getDate(), end = `${f.slice(0, 7)}-${String(last).padStart(2, '0')}`, today = new Date().toLocaleDateString('sv-SE');
   $('impTo').min = f; $('impTo').max = end;
-  if (!$('impTo').value || $('impTo').value < f || $('impTo').value > end) $('impTo').value = f > new Date().toLocaleDateString('sv-SE') ? f : (end < new Date().toLocaleDateString('sv-SE') ? end : new Date().toLocaleDateString('sv-SE'));
+  if (!$('impTo').value || $('impTo').value < f || $('impTo').value > end) $('impTo').value = f > today ? f : (end < today ? end : today);
 }
 $('impFrom').addEventListener('change', limitImpTo);
 $('btnImpHist').onclick = () => { $('impHist').hidden = !$('impHist').hidden; if (!$('impHist').hidden) run($('btnImpHistGo'), loadImpHist); };
@@ -892,13 +957,13 @@ async function loadImpHist() {
   const f = $('impFrom').value, t = $('impTo').value;
   if (!f || !t) throw new Error('Hãy chọn ngày bắt đầu và ngày kết thúc.');
   if (f.slice(0, 7) !== t.slice(0, 7)) throw new Error('Chỉ xem được trong 1 tháng. Hãy chọn 2 ngày cùng tháng.');
-  renderImpHist($('impHistBody'), await api('listImports', f, t));
+  renderImpHist($('impHistBody'), await api('listImports', f, t), loadImpHist);
 }
 $('btnImpHistGo').onclick = e => run(e.target, loadImpHist);
 /* Quản trị: xem tất cả */
 async function loadAdmImp(all) {
   if (all) { $('aimpFrom').value = ''; $('aimpTo').value = ''; }
-  renderImpHist($('aimpBody'), await api('listImports', $('aimpFrom').value, $('aimpTo').value));
+  renderImpHist($('aimpBody'), await api('listImports', $('aimpFrom').value, $('aimpTo').value), () => loadAdmImp(false));
 }
 $('aimpGo').onclick = e => run(e.target, () => loadAdmImp(false));
 $('aimpAll').onclick = e => run(e.target, () => loadAdmImp(true));
@@ -939,6 +1004,7 @@ const statRow = (label, o) => `<tr><td>${label}</td><td class="n">${o.invoices}<
   <td class="n">${sign(o.gross)}</td><td class="n">${sign(o.diff)}</td><td class="n">${sign(o.net)}</td><td class="n">${o.margin}%</td></tr>`;
 const statHead = first => `<tr><th>${first}</th><th class="n">HĐ</th><th class="n">Doanh thu</th><th class="n">Giá vốn</th><th class="n">Lãi gộp</th><th class="n">Kiểm kê</th><th class="n">Lãi/lỗ</th><th class="n">Biên</th></tr>`;
 
+let repInv = [];
 async function runReport() {
   try {
     const admin = USER.role === 'ADMIN';
@@ -947,13 +1013,18 @@ async function runReport() {
       <div class="kpis">${kpi('Số hóa đơn', t.invoices)}${kpi('Doanh thu', money(t.revenue))}${kpi('Chiết khấu đã cho', money(t.discount))}${kpi('Khuyến mại đã cho', money(t.promo))}
         ${kpi('Giá vốn hàng bán', money(t.cogs))}${kpi('Lãi gộp', sign(t.gross))}
         ${admin ? kpi('Chênh lệch kiểm kê', sign(t.diff)) + kpi('Lãi/lỗ sau kiểm kê', sign(t.net)) + kpi('Biên lãi', t.margin + '%') + kpi('Tiền nhập hàng', money(t.importCost)) : ''}</div>
-      ${admin ? `<h2>Theo nhân viên</h2><div class="wrap">${r.byStaff.length ? `<table>${statHead('Nhân viên')}${r.byStaff.map(s => statRow(nm(s.key), s)).join('')}</table>` : '<div class="empty">Không có dữ liệu.</div>'}</div>` : ''}
-      ${admin && r.byDay.length > 1 ? `<h2 style="margin-top:14px">Theo ngày</h2><div class="wrap"><table>${statHead('Ngày')}${r.byDay.map(d => statRow(esc(d.key.split('-').reverse().join('/')), d)).join('')}</table></div>` : ''}
-      <h2 style="margin-top:14px">Món bán chạy</h2><div class="wrap">${r.topItems.length ? `<table><tr><th>Món</th><th class="n">SL</th><th class="n">Doanh thu</th></tr>${r.topItems.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có bán hàng.</div>'}</div>
-      <h2 style="margin-top:14px">Hóa đơn</h2><div class="wrap">${r.invoices.length ? `<table><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th>${admin ? '<th>Nhân viên</th>' : ''}<th class="n">Tiền</th></tr>${r.invoices.map(i => `<tr><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td>${admin ? `<td>${nm(i.staff)}</td>` : ''}<td class="n">${money(i.total)}</td></tr>`).join('')}</table>` : '<div class="empty">Không có hóa đơn.</div>'}</div>`;
+      ${admin ? `<details class="fold"><summary>Theo nhân viên</summary><div class="wrap">${r.byStaff.length ? `<table>${statHead('Nhân viên')}${r.byStaff.map(s => statRow(nm(s.key), s)).join('')}</table>` : '<div class="empty">Không có dữ liệu.</div>'}</div></details>` : ''}
+      ${admin && r.byDay.length > 1 ? `<details class="fold"><summary>Theo ngày</summary><div class="wrap"><table>${statHead('Ngày')}${r.byDay.map(d => statRow(esc(d.key.split('-').reverse().join('/')), d)).join('')}</table></div></details>` : ''}
+      <details class="fold"><summary>Món bán chạy</summary><div class="wrap">${r.topItems.length ? `<table><tr><th>Món</th><th class="n">SL</th><th class="n">Doanh thu</th></tr>${r.topItems.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có bán hàng.</div>'}</div></details>
+      <details class="fold"><summary>Hóa đơn</summary>${r.invoices.length ? `<div class="empty" style="margin:0;padding:0 0 6px;text-align:center">Bấm vào một dòng để xem chi tiết hóa đơn.</div><div class="wrap"><table class="zebra"><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th>${admin ? '<th>Nhân viên</th>' : ''}<th class="n">Tiền</th></tr>${r.invoices.map((i, k) => `<tr class="hrow" data-k="${k}"><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td>${admin ? `<td>${nm(i.staff)}</td>` : ''}<td class="n">${money(i.total)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Không có hóa đơn.</div>'}</details>`;
+    repInv = r.invoices;
   } catch (e) { toast(e.message, true); }
 }
 $('btnRep').onclick = e => run(e.target, runReport);
+$('repBody').addEventListener('click', e => {   // bấm dòng hóa đơn -> mở chi tiết
+  const tr = e.target.closest('tr.hrow'); if (!tr || tr.dataset.busy) return;
+  tr.dataset.busy = 1; viewInvoice(repInv[+tr.dataset.k]).catch(err => toast(err.message, true)).finally(() => delete tr.dataset.busy);
+});
 
 /* ---------- Quản trị: nhân viên + thiết bị ---------- */
 const ST = { APPROVED: 'Đã duyệt', PENDING: 'Chờ duyệt', REVOKED: 'Đã thu hồi' };
