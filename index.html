@@ -111,7 +111,7 @@
 <div id="login" hidden>
   <h2 style="font-size:20px">Quản lý bán hàng<span class="ver"></span></h2>
   <label style="text-align:left">Tên đăng nhập</label><input id="lUser" autocapitalize="none" autocomplete="username">
-  <label style="text-align:left">Mật khẩu</label><input id="lPass" type="password" autocomplete="current-password">
+  <label style="text-align:left">Mật khẩu</label><div style="position:relative"><input id="lPass" type="password" autocomplete="current-password" style="padding-right:44px"><button type="button" id="btnEye" aria-label="Hiện mật khẩu" title="Hiện/ẩn mật khẩu" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;padding:6px;line-height:0;color:var(--muted)"><svg id="eyeOn" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg><svg id="eyeOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12A3 3 0 1 1 9.88 9.88"/><path d="M1 1l22 22"/></svg></button></div>
   <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink);text-align:left"><input type="checkbox" id="lRemember" style="width:auto"> Ghi nhớ tên đăng nhập và mật khẩu</label>
   <button class="btn" id="btnLogin" style="margin-top:14px;width:100%">Đăng nhập</button>
   <p id="loginMsg" class="empty"></p>
@@ -417,7 +417,7 @@ $('btnCopy').onclick = async e => {
 
 function showLogin(msg) {
   TOKEN = ''; USER = null; store.del('bh_token');
-  $('app').hidden = true; $('login').hidden = false; $('lPass').value = ''; loadSaved(); otpReset();
+  $('app').hidden = true; $('login').hidden = false; $('lPass').value = ''; loadSaved(); otpReset(); eyeSet(false);
   $('devCode').textContent = deviceId().slice(0, 8).toUpperCase(); loginMsg(msg, !!msg);
 }
 $('btnLogin').onclick = e => run(e.target, async () => {
@@ -443,6 +443,9 @@ $('btnOtp').onclick = e => run(e.target, async () => {
 });
 $('btnOtpBack').onclick = () => { otpReset(); loginMsg('Bấm "Đăng nhập" để nhận mã OTP mới.'); };
 $('lOtp').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnOtp').click(); });
+/* Con mắt: hiện/ẩn mật khẩu để kiểm tra đã gõ đúng chưa */
+function eyeSet(show) { $('lPass').type = show ? 'text' : 'password'; $('eyeOn').hidden = show; $('eyeOff').hidden = !show; $('btnEye').setAttribute('aria-label', show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'); }
+$('btnEye').onclick = () => { eyeSet($('lPass').type === 'password'); $('lPass').focus(); };
 $('lPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
 $('btnLogout').onclick = () => { call('logout', []).catch(() => {}); showLogin(''); };
 
