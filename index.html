@@ -348,7 +348,7 @@ function renderCart() {
   tickClock();
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
     const m = DATA.menu.find(x => String(x.id) === String(id)), amt = m.price * cart[id]; gross += amt;
-    return `<tr><td>${esc(m.name)}<br><small>${money(m.price)}đ</small></td>
+    return `<tr><td>${esc(m.name)}</td>
       <td><span class="qty"><button data-d="-1" data-id="${esc(id)}">−</button>${cart[id]}<button data-d="1" data-id="${esc(id)}">+</button></span></td>
       <td class="n">${money(amt)}</td></tr>`;
   }).join('')}</table>` : '<div class="empty">Chạm vào món để thêm.</div>';
