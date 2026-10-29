@@ -477,7 +477,8 @@ function showReceipt(r, opt) {
   $('receipt').hidden = false; if (opt.pending) $('receipt').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('receipt').innerHTML = `<div class="c">
       <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
-      <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div></div>
+      <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div>
+      <div id="printTag" style="font-weight:700;font-size:15px;margin-top:2px" hidden></div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(r.table)}</div>
     <div><b>Phục vụ:</b> ${esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>
@@ -506,6 +507,19 @@ function showReceipt(r, opt) {
     .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
 let lastReceipt = null;
+
+/* In hóa đơn: máy chủ đếm số lần in. Lần 1 = BẢN GỐC, các lần sau = IN LẠI LẦN 1, 2, 3… (in dưới dòng Số HD) */
+async function doPrint() {
+  const id = lastReceipt && lastReceipt.r && lastReceipt.r.id;
+  if (!id || id === '…') return window.print();
+  let n;
+  try { n = Number(await api('markPrinted', id)) || 1; }
+  catch (err) { return toast('Không ghi nhận được lần in: ' + err.message, true); }
+  const tag = $('printTag');
+  tag.textContent = n <= 1 ? '(BẢN GỐC)' : `(IN LẠI LẦN ${n - 1})`;
+  tag.hidden = false;
+  window.print();
+}
 
 /* ---------- VietQR động: tự điền số tài khoản + số tiền + nội dung ---------- */
 const BANKS = [
@@ -616,7 +630,7 @@ async function shareReceipt() {
 }
 $('receipt').addEventListener('click', e => {
   const a = e.target.dataset.a;
-  if (a === 'print') window.print();
+  if (a === 'print') run(e.target, doPrint);
   if (a === 'close') $('receipt').hidden = true;
   if (a === 'confirm') {
     $('paidMark').hidden = false; $('sharePanel').hidden = false; e.target.hidden = true;
