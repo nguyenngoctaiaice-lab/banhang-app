@@ -662,19 +662,26 @@ function showReceipt(r, opt) {
   if (dyn && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
     .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
+/* App Android (Capacitor): WebView không in/chia sẻ được như Chrome, nên gọi sang cầu nối gốc "AppBridge" */
+const appNat = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() ? C : null; };
+const appCall = (m, o) => { const C = appNat(); return C.nativePromise ? C.nativePromise('AppBridge', m, o || {}) : C.Plugins.AppBridge[m](o || {}); };
+async function printNow() {
+  if (appNat()) { try { return await appCall('print'); } catch (e) { toast('Không mở được chức năng in: ' + ((e && e.message) || e), true); return; } }
+  window.print();
+}
 let lastReceipt = null;
 
 /* In hóa đơn: máy chủ đếm số lần in. Lần 1 = BẢN GỐC, các lần sau = IN LẠI LẦN 1, 2, 3… (in dưới dòng Số HD) */
 async function doPrint() {
   const id = lastReceipt && lastReceipt.r && lastReceipt.r.id;
-  if (!id || id === '…') return window.print();
+  if (!id || id === '…') return printNow();
   let n;
   try { n = Number(await api('markPrinted', id)) || 1; }
   catch (err) { return toast('Không ghi nhận được lần in: ' + err.message, true); }
   const tag = $('printTag');
   tag.textContent = n <= 1 ? '(BẢN GỐC)' : `(IN LẠI LẦN ${n - 1})`;
   tag.hidden = false;
-  window.print();
+  await printNow();
 }
 
 /* ---------- VietQR động: tự điền số tài khoản + số tiền + nội dung ---------- */
@@ -759,6 +766,15 @@ async function copyText(t) { try { await navigator.clipboard.writeText(t); retur
 async function shareReceipt() {
   const text = lastReceipt.text; let file = null;
   try { file = await receiptFile(); } catch (e) {}
+  /* App Android: mở thẳng Zalo kèm ảnh hóa đơn (chưa cài Zalo thì hiện bảng chọn ứng dụng) */
+  if (appNat() && file) {
+    try {
+      const b64 = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.onerror = no; fr.readAsDataURL(file); });
+      const r = await appCall('shareImage', { base64: b64, name: file.name, text: text, pkg: 'com.zing.zalo' });
+      if (r && r.direct === false) toast('Không mở thẳng được Zalo, hãy chọn ứng dụng trong bảng chia sẻ.');
+      return;
+    } catch (e) { toast('Không chia sẻ được: ' + ((e && e.message) || e), true); }
+  }
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   /* Điện thoại: mở bảng chia sẻ của hệ điều hành (có Zalo, Messenger...) */
   if (mobile && navigator.share) {
