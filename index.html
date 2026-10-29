@@ -77,6 +77,9 @@
   #receipt .qr { display:block; margin:6px auto; width:150px; max-width:100%; height:auto; }
   #receipt .bankinfo { font-size:12px; line-height:1.35; }
   .qrprev { display:block; max-width:160px; margin:8px 0; border:1px solid var(--line); border-radius:6px; }
+  #findBox { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:20; display:flex; align-items:flex-start; justify-content:center; padding:4vh 8px; overflow:auto; }
+  #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
+  @media print { #findBox { display:none !important; } }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } .noprint { visibility:hidden !important; } }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
 </style>
@@ -117,10 +120,22 @@
       <div class="tot big"><span>Thành tiền</span><span id="tTotal">0</span></div>
       <label>Ghi chú</label><input id="saleNote" placeholder="Không bắt buộc">
       <div class="row" style="margin-top:12px"><button class="btn" id="btnPay">Thanh toán</button><button class="btn ghost" id="btnHold">Treo hóa đơn</button></div>
-      <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="btnClear">Bỏ thay đổi, làm hóa đơn mới</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="btnClear">Bỏ thay đổi, làm hóa đơn mới</button><button class="btn ghost sm" id="btnFind">Tìm lại hóa đơn</button></div>
     </div>
   </div>
   <div id="receipt" hidden></div>
+  <div id="findBox" hidden>
+    <div class="dlg">
+      <div class="row" style="align-items:center"><h2 style="margin:0;text-align:left">Tìm lại hóa đơn (chỉ xem / in)</h2><button class="btn ghost sm" id="findClose" style="flex:0 0 auto">Đóng</button></div>
+      <div class="row" style="align-items:end;margin-top:6px">
+        <div><label id="fLblFrom">Ngày</label><input id="findFrom" type="date"></div>
+        <div class="adm"><label>Đến ngày</label><input id="findTo" type="date"></div>
+        <div><label>Mã hóa đơn / bàn</label><input id="findQ" placeholder="Không bắt buộc"></div>
+        <button class="btn" id="findGo" style="flex:0 0 auto">Tìm</button>
+      </div>
+      <div id="findList" class="wrap" style="margin-top:10px"></div>
+    </div>
+  </div>
   <div class="row" style="align-items:center;margin-top:18px"><h2 id="heldTitle">Hóa đơn đang treo</h2><button class="btn ghost sm" id="btnHeldRefresh" style="flex:0 0 auto">Làm mới</button></div>
   <div id="heldList" class="wrap"></div>
 </section>
@@ -310,8 +325,10 @@ const TABS = [
 const ROLE_NAME = { ADMIN: 'Admin', BANHANG: 'Bán hàng', KHO: 'Kho' };
 
 async function enter() {
-  DATA = await api('getInitData'); USER = DATA.user;
+  const [dd, ss] = await Promise.all([api('getInitData'), loadServerSettings()]); DATA = dd; USER = DATA.user;
   const admin = USER.role === 'ADMIN';
+  if (ss === 'empty' && admin && store.get(SET_KEY)) { try { api('saveShopSettings', JSON.parse(store.get(SET_KEY))).catch(() => {}); } catch (e) {} }
+  setTimeout(() => { loadQRLib().catch(() => {}); loadH2C().catch(() => {}); }, 1500);
   $('who').textContent = `${USER.name} · ${ROLE_NAME[USER.role]}`;
   fillTables();
   $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
@@ -383,33 +400,69 @@ function orderPayload() {
   if (!$('saleTable').value) throw new Error('Không còn bàn trống để chọn.');
   return { id: cur.id, table: $('saleTable').value, custType: $('saleCust').value, note: $('saleNote').value, items };
 }
-$('btnHold').onclick = e => run(e.target, async () => {
-  const r = await api('saveOrder', orderPayload(), 'HOLD').catch(err => { loadHeld(true); throw err; });
-  toast(`Đã treo ${r.id} · ${r.table}. Bạn có thể làm hóa đơn tiếp theo.`); heldTables.add(r.table); resetOrder(); loadHeld();
-});
-$('btnPay').onclick = e => run(e.target, async () => {
-  const r = await api('saveOrder', orderPayload(), 'PAY').catch(err => { loadHeld(true); throw err; });
-  showReceipt(r); resetOrder(); loadHeld();
-});
+const heldCache = new Map(), paidCache = new Map();   // bộ nhớ tạm chi tiết hóa đơn để gọi lại / xem lại tức thì
+function calcReceipt(items, custType) {
+  const lines = items.map(i => { const m = DATA.menu.find(x => String(x.id) === String(i.id)) || { name: String(i.id), price: 0 };
+    return { name: m.name, qty: i.qty, price: m.price, amount: m.price * i.qty }; });
+  const gross = lines.reduce((t, l) => t + l.amount, 0), pc = Number((DATA.customerTypes.find(c => c.type === custType) || {}).discPct) || 0;
+  return { lines, gross, discPct: pc, discount: Math.round(gross * pc / 100) };
+}
+const snapshotOrder = () => ({ cart: { ...cart }, cur: { ...cur }, table: $('saleTable').value, cust: $('saleCust').value, note: $('saleNote').value });
+function restoreOrder(sn) {
+  if (Object.keys(cart).length) return false;   // đã bắt đầu hóa đơn khác thì không ghi đè
+  cart = sn.cart; cur = sn.cur; fillTables(); $('saleTable').value = sn.table; $('saleCust').value = sn.cust; $('saleNote').value = sn.note; renderCart(); return true;
+}
+$('btnHold').onclick = async () => {
+  let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
+  const sn = snapshotOrder(); resetOrder(); toast('Đang treo hóa đơn…');
+  try {
+    const r = await api('saveOrder', payload, 'HOLD');
+    heldCache.delete(r.id); heldTables.add(r.table); fillTables(); toast(`Đã treo ${r.id} · ${r.table}. Bạn có thể làm hóa đơn tiếp theo.`); loadHeld();
+  } catch (err) { loadHeld(true); toast(err.message + (restoreOrder(sn) ? '' : ' (hóa đơn vừa treo chưa được lưu, hãy tạo lại)'), true); }
+};
+$('btnPay').onclick = async () => {
+  let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
+  const sn = snapshotOrder(), c = calcReceipt(payload.items, payload.custType);
+  showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN') }, { pending: true });
+  resetOrder();
+  try {
+    const r = await api('saveOrder', payload, 'PAY');
+    showReceipt(r);
+    paidCache.set(r.id, Promise.resolve({ id: r.id, items: payload.items, table: payload.table, custType: payload.custType, note: payload.note,
+      openTime: sn.cur.openTime, payTime: r.payTime, staff: r.staff || r.staffName || (USER && USER.name) }));
+    heldCache.delete(r.id); if (sn.cur.id) heldTables.delete(sn.cur.table); fillTables(); loadHeld();
+  } catch (err) { $('receipt').hidden = true; loadHeld(true); toast(err.message + (restoreOrder(sn) ? '' : ' (thanh toán chưa được lưu, hãy tạo lại hóa đơn)'), true); }
+};
 
 /* ---------- Thông tin hóa đơn (cài trong tab Quản trị) ---------- */
 const SET_KEY = 'bh_settings';
+let SETTINGS = null;
+const normSettings = o => { o = o || {}; return { shopName: o.shopName || '', address: o.address || '', taxPct: o.taxPct === undefined ? 10 : (Number(o.taxPct) || 0),
+  bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '' }; };
 function getSettings() {
-  let o = {}; try { o = JSON.parse(store.get(SET_KEY) || '{}') || {}; } catch (e) {}
-  return { shopName: o.shopName || '', address: o.address || '', taxPct: o.taxPct === undefined ? 10 : (Number(o.taxPct) || 0),
-    bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '' };
+  if (!SETTINGS) { let o = {}; try { o = JSON.parse(store.get(SET_KEY) || '{}') || {}; } catch (e) {} SETTINGS = normSettings(o); }
+  return SETTINGS;
+}
+/* Thông tin hóa đơn lưu trên máy chủ để mọi thiết bị dùng chung; máy chủ chưa hỗ trợ thì dùng bản lưu trên máy */
+async function loadServerSettings() {
+  try {
+    const s = await api('getShopSettings');
+    if (s && typeof s === 'object' && Object.keys(s).length) { SETTINGS = normSettings(s); store.set(SET_KEY, JSON.stringify(SETTINGS)); return 'ok'; }
+    return 'empty';
+  } catch (e) { return 'fail'; }
 }
 const dtParse = s => { const m = String(s || '').match(/(\d{1,2}\/\d{1,2}\/\d{4})\D+(\d{1,2}:\d{2})/); return m ? { d: m[1], t: m[2] } : null; };
 
-function showReceipt(r) {
+function showReceipt(r, opt) {
+  opt = opt || {};
   const st = getSettings(), gross = Number(r.gross) || 0, disc = Number(r.discount) || 0, pre = gross - disc;
   const tax = Math.round(pre * st.taxPct / 100), grand = pre + tax, hasTax = st.taxPct > 0;
   const o = dtParse(r.openTime), p = dtParse(r.payTime);
   const when = o && p ? `${p.d} (${o.t} - ${p.t})` : `${r.payTime || r.openTime || ''}`;
   const staff = r.staff || r.staffName || (USER && USER.name) || '';
   const bin = bankBin(st.bank), dyn = !!(bin && st.account);
-  const hasPay = dyn || st.qr || st.bank || st.account || st.holder;
-  $('receipt').hidden = false;
+  const hasPay = !opt.reprint && (dyn || st.qr || st.bank || st.account || st.holder);
+  $('receipt').hidden = false; if (opt.pending) $('receipt').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('receipt').innerHTML = `<div class="c">
       <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
       <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div></div>
@@ -428,16 +481,16 @@ function showReceipt(r) {
     <div class="grand"><span>Tổng thanh toán</span><span>${money(grand)}</span></div>
     <div class="c"><div style="font-weight:700;margin-top:6px">Trân trọng cảm ơn</div>
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
-      ${dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
+      ${opt.reprint ? '' : dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
       <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
-    <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" hidden>✓ ĐÃ THANH TOÁN</div>
-    <div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn sm" data-a="confirm">Xác nhận thanh toán</button><button class="btn ghost sm" data-a="close">Đóng</button></div>
-    <div id="sharePanel" class="noprint" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
+    <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" ${opt.reprint ? '' : 'hidden'}>✓ ĐÃ THANH TOÁN</div>
+    ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button>${opt.reprint ? '' : '<button class="btn sm" data-a="confirm">Xác nhận thanh toán</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
+    <div id="sharePanel" class="noprint" ${opt.reprint ? '' : 'hidden'} style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
       <div style="font-weight:700;margin-bottom:6px">Chia sẻ hóa đơn cho khách</div>
       <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button><button class="btn ghost sm" data-a="zalo">Zalo</button><button class="btn ghost sm" data-a="fb">Facebook</button><button class="btn ghost sm" data-a="copy">Sao chép</button></div>
     </div>`;
   lastReceipt = { r, text: receiptText(r, st, grand, when) };
-  if (dyn) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
+  if (dyn && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
     .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
 let lastReceipt = null;
@@ -555,6 +608,9 @@ async function loadHeld(silent) {
       `<tr class="hrow" data-a="recall" data-id="${esc(x.id)}"><td>${esc(x.id)}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td>
        <td><button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
       : '<div class="empty">Không có hóa đơn nào đang treo.</div>';
+    [...heldCache.keys()].forEach(id => { if (!h.some(x => x.id === id)) heldCache.delete(id); });
+    h.slice(0, 10).forEach(x => { const sig = x.count + '|' + x.total, c = heldCache.get(x.id);
+      if (!c || c.sig !== sig) { const pr = api('getOrder', x.id); pr.catch(() => { const k = heldCache.get(x.id); if (k && k.p === pr) heldCache.delete(x.id); }); heldCache.set(x.id, { sig, p: pr }); } });
   } catch (e) { if (!silent) toast(e.message, true); }
 }
 $('btnHeldRefresh').onclick = e => run(e.target, () => loadHeld());
@@ -564,7 +620,7 @@ $('heldList').addEventListener('click', e => {
   if (b.dataset.a === 'recall') return b.dataset.busy ? null : run(b, async () => {
     b.dataset.busy = 1; setTimeout(() => delete b.dataset.busy, 1500);
     if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
-    const o = await api('getOrder', id);
+    const hc = heldCache.get(id); let o; try { o = hc ? await hc.p : await api('getOrder', id); } catch (er) { heldCache.delete(id); o = await api('getOrder', id); }
     cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openTime, table: o.table };
     fillTables(); $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; renderCart();
     toast('Đã gọi lại ' + o.id);
@@ -574,6 +630,52 @@ $('heldList').addEventListener('click', e => {
     run(b, async () => { await api('cancelHeld', id); toast('Đã hủy ' + id); loadHeld(); });
   }
 });
+
+/* ---------- Tìm lại hóa đơn đã thanh toán (chỉ xem / in, không sửa / xóa) ---------- */
+const toDMY = d => { const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d || ''); };
+let findRows = [], findKey = '';
+function drawFind() {
+  const r = repCache[findKey], q = nrm($('findQ').value); if (!r) return;
+  findRows = r.invoices.filter(i => !q || nrm(i.id + i.table).includes(q));
+  $('findList').innerHTML = findRows.length ? `<table><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th><th class="n">Tiền</th><th></th></tr>${findRows.map((i, k) =>
+    `<tr><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td><td class="n">${money(i.total)}</td>
+     <td><button class="btn ghost sm" data-k="${k}">Xem / In</button></td></tr>`).join('')}</table>` : '<div class="empty">Không tìm thấy hóa đơn.</div>';
+  findRows.slice(0, 5).forEach(i => { if (!paidCache.has(i.id)) { const pr = api('getOrder', i.id); pr.catch(() => paidCache.delete(i.id)); paidCache.set(i.id, pr); } });  // tải trước 5 hóa đơn đầu
+}
+const repCache = {};
+function openFind() {
+  const admin = USER.role === 'ADMIN', today = new Date().toLocaleDateString('sv-SE');
+  $('fLblFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
+  $('findFrom').value = today; $('findTo').value = today; $('findQ').value = '';
+  $('findBox').hidden = false; $('findList').innerHTML = ''; runFind();
+}
+async function runFind() {
+  const admin = USER.role === 'ADMIN', from = $('findFrom').value, to = admin ? $('findTo').value : from;
+  findKey = from + '|' + to; const key = findKey;
+  if (repCache[key]) drawFind();   // hiện ngay kết quả đã có, rồi làm mới ở nền
+  try {
+    const r = await api('getReport', from, to, '');
+    repCache[key] = r; if (key === findKey) drawFind();
+  } catch (e) { toast(e.message, true); }
+}
+async function getPaidOrder(id) {
+  let pr = paidCache.get(id); if (!pr) { pr = api('getOrder', id); paidCache.set(id, pr); }
+  try { const o = await pr; if (!o) throw new Error('Không có dữ liệu hóa đơn.'); return o; } catch (e) { paidCache.delete(id); throw e; }
+}
+async function viewOldInvoice(k) {
+  const inv = findRows[k]; if (!inv) return;
+  const o = await getPaidOrder(inv.id), c = calcReceipt(o.items, o.custType);
+  showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
+    openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true });
+  $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
+}
+$('btnFind').onclick = openFind;
+$('findClose').onclick = () => $('findBox').hidden = true;
+$('findGo').onclick = e => run(e.target, runFind);
+$('findQ').addEventListener('input', drawFind);
+$('findQ').addEventListener('keydown', e => { if (e.key === 'Enter') runFind(); });
+$('findFrom').addEventListener('change', runFind); $('findTo').addEventListener('change', runFind);
+$('findList').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) run(b, () => viewOldInvoice(+b.dataset.k)); });
 
 /* ---------- Nhập hàng ---------- */
 let impLines = [];
@@ -688,15 +790,17 @@ $('sQrFile').addEventListener('change', e => {
   fr.readAsDataURL(f);
 });
 $('btnQrDel').onclick = () => { pendingQr = ''; $('sQrFile').value = ''; showQrPrev(); toast('Đã bỏ mã QR. Bấm "Lưu thông tin hóa đơn" để áp dụng.'); };
-$('btnSetSave').onclick = () => {
+$('btnSetSave').onclick = e => run(e.target, async () => {
   const tax = Number($('sTax').value);
-  if (!(tax >= 0 && tax <= 100)) return toast('Thuế phải từ 0 đến 100.', true);
-  store.set(SET_KEY, JSON.stringify({ shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
-    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr }));
-  const b = $('sBank').value.trim();
+  if (!(tax >= 0 && tax <= 100)) throw new Error('Thuế phải từ 0 đến 100.');
+  const obj = { shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
+    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr };
+  SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj));
+  let synced = true; try { await api('saveShopSettings', obj); } catch (err) { synced = false; }
+  const b = obj.bank;
   if (b && !bankBin(b)) toast('Đã lưu, nhưng chưa nhận ra ngân hàng "' + b + '". Hãy chọn từ danh sách gợi ý để tạo QR tự động.', true);
-  else toast('Đã lưu thông tin hóa đơn.');
-};
+  else toast(synced ? 'Đã lưu và đồng bộ cho mọi thiết bị.' : 'Đã lưu trên máy này. Chưa đồng bộ sang thiết bị khác (máy chủ chưa có hàm saveShopSettings).', !synced);
+});
 async function loadAdmin() {
   fillSettings();
   try {
