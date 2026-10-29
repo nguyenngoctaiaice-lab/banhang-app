@@ -488,7 +488,7 @@ function showReceipt(r, opt) {
     ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button>${opt.reprint ? '' : '<button class="btn sm" data-a="confirm">Xác nhận thanh toán</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
     <div id="sharePanel" class="noprint" ${opt.reprint ? '' : 'hidden'} style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
       <div style="font-weight:700;margin-bottom:6px">Chia sẻ hóa đơn cho khách</div>
-      <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button><button class="btn ghost sm" data-a="zalo">Zalo</button><button class="btn ghost sm" data-a="fb">Facebook</button><button class="btn ghost sm" data-a="copy">Sao chép</button></div>
+      <div class="row"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button></div>
     </div>`;
   lastReceipt = { r, text: receiptText(r, st, grand, when) };
   if (dyn && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
@@ -575,20 +575,33 @@ async function receiptFile() {
   } finally { hide.forEach(n => n.style.display = ''); }
 }
 async function copyText(t) { try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; } }
-async function shareReceipt(target) {
+async function shareReceipt() {
   const text = lastReceipt.text; let file = null;
   try { file = await receiptFile(); } catch (e) {}
-  if (navigator.share) {
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  /* Điện thoại: mở bảng chia sẻ của hệ điều hành (có Zalo, Messenger...) */
+  if (mobile && navigator.share) {
     try {
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], text });
       else await navigator.share({ text });
       return;
     } catch (e) { if (e.name === 'AbortError') return; }
   }
+  /* Máy tính: chép ảnh hóa đơn vào clipboard, mở Zalo rồi dán (Ctrl+V) */
+  if (file && navigator.clipboard && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': file })]);
+      return toast('Đã chép ảnh hóa đơn. Mở Zalo, chọn khách rồi nhấn Ctrl+V để gửi.');
+    } catch (e) {}
+  }
+  /* Dự phòng: tải ảnh về máy, hoặc chép chữ nếu không tạo được ảnh */
+  if (file) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return toast('Đã tải ảnh hóa đơn về máy, hãy gửi ảnh này qua Zalo.');
+  }
   const ok = await copyText(text);
-  toast(ok ? 'Đã sao chép nội dung hóa đơn, hãy dán vào ' + (target === 'fb' ? 'Messenger.' : 'Zalo.') : 'Máy này không hỗ trợ chia sẻ trực tiếp.', !ok);
-  if (target === 'fb') window.open('https://www.messenger.com/', '_blank');
-  else if (target === 'zalo') window.open('https://chat.zalo.me/', '_blank');
+  toast(ok ? 'Đã sao chép nội dung hóa đơn, hãy dán vào Zalo.' : 'Máy này không hỗ trợ chia sẻ.', !ok);
 }
 $('receipt').addEventListener('click', e => {
   const a = e.target.dataset.a;
@@ -598,8 +611,7 @@ $('receipt').addEventListener('click', e => {
     $('paidMark').hidden = false; $('sharePanel').hidden = false; e.target.hidden = true;
     toast('Đã xác nhận thanh toán. Bạn có thể chia sẻ hóa đơn cho khách.');
   }
-  if (a === 'share' || a === 'zalo' || a === 'fb') run(e.target, () => shareReceipt(a));
-  if (a === 'copy') copyText(lastReceipt.text).then(ok => toast(ok ? 'Đã sao chép nội dung hóa đơn.' : 'Không sao chép được.', !ok));
+  if (a === 'share') run(e.target, shareReceipt);
 });
 
 async function loadHeld(silent) {
