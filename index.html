@@ -81,6 +81,10 @@
   #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
   @media print { #findBox { display:none !important; } }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } #receipt .noprint, #receipt .noprint * { display:none !important; } }
+  details.fold { margin-top:16px; border-top:1px solid var(--line); padding-top:8px; }
+  details.fold:first-of-type { margin-top:0; border-top:0; padding-top:0; }
+  details.fold > summary { font-size:16px; font-weight:700; text-align:center; cursor:pointer; padding:8px 0; user-select:none; }
+  details.fold[open] > summary { margin-bottom:6px; }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
 </style>
 </head>
@@ -117,6 +121,7 @@
       <div id="cart"></div>
       <div class="tot"><span>Tiền hàng</span><span id="tGross">0</span></div>
       <div class="tot"><span id="tDiscLabel">Chiết khấu</span><span id="tDisc">0</span></div>
+      <div class="tot" id="tPromoRow" hidden><span id="tPromoLabel">Khuyến mại</span><span id="tPromo">0</span></div>
       <div class="tot big"><span>Thành tiền</span><span id="tTotal">0</span></div>
       <label>Ghi chú</label><input id="saleNote" placeholder="Không bắt buộc">
       <div class="row" style="margin-top:12px"><button class="btn" id="btnPay">Thanh toán</button><button class="btn ghost" id="btnHold">Treo hóa đơn</button></div>
@@ -178,45 +183,73 @@
 </section>
 
 <section class="tab" id="admin">
-  <h2>Tìm hóa đơn (chuyên sâu)</h2>
-  <div class="row" style="align-items:end">
-    <div><label>Từ ngày</label><input id="admFrom" type="date"></div>
-    <div><label>Đến ngày</label><input id="admTo" type="date"></div>
-    <div><label>Nhân viên</label><select id="admStaff"></select></div>
-    <div><label>Mã hóa đơn / bàn</label><input id="admQ" placeholder="Không bắt buộc"></div>
-    <button class="btn" id="admGo" style="flex:0 0 auto">Tìm</button>
-  </div>
-  <div id="admInfo" class="empty"></div>
-  <div id="admList" class="wrap"></div>
-  <h2 style="margin-top:20px">Thông tin hóa đơn</h2>
-  <div class="row">
-    <div><label>Tên quán (tiêu đề hóa đơn)</label><input id="sName"></div>
-    <div><label>Địa chỉ</label><input id="sAddr"></div>
-    <div><label>Thuế (%) · nhập 0 để không tính thuế</label><input id="sTax" type="number" min="0" max="100" step="any" inputmode="decimal"></div>
-  </div>
-  <div class="row" style="margin-top:8px">
-    <div><label>Ngân hàng (chọn trong danh sách)</label><input id="sBank" list="bankList" autocomplete="off" placeholder="VD: Vietcombank"><datalist id="bankList"></datalist></div>
-    <div><label>Số tài khoản</label><input id="sAcc" inputmode="numeric"></div>
-    <div><label>Chủ tài khoản</label><input id="sHolder"></div>
-  </div>
-  <label>Ảnh mã QR dự phòng (không bắt buộc)</label>
-  <p class="empty" style="margin:2px 0 6px">Khi đã nhập Ngân hàng + Số tài khoản, hóa đơn tự tạo mã QR có sẵn số tiền và nội dung. Ảnh này chỉ dùng khi chưa nhập đủ thông tin.</p>
-  <input id="sQrFile" type="file" accept="image/*">
-  <img id="sQrPrev" class="qrprev" alt="Mã QR" hidden>
-  <div class="row" style="margin-top:8px"><button class="btn" id="btnSetSave">Lưu thông tin hóa đơn</button><button class="btn ghost" id="btnQrDel">Xóa mã QR</button></div>
-  <p class="empty" style="margin-top:6px">Thông tin này lưu trên thiết bị đang dùng. Thiết bị khác cần nhập lại một lần.</p>
-  <h2 style="margin-top:20px">Nhân viên</h2>
-  <div id="userList" class="wrap"></div>
-  <div class="row" style="margin-top:8px">
-    <div><label>Tên đăng nhập</label><input id="uGit" autocapitalize="none" autocomplete="off"></div>
-    <div><label>Họ tên</label><input id="uName"></div>
-    <div><label>Mật khẩu (để trống = giữ nguyên)</label><input id="uPass" autocomplete="off"></div>
-    <div><label>Vai trò</label><select id="uRole"><option value="BANHANG">Bán hàng</option><option value="KHO">Kho</option><option value="ADMIN">Admin</option></select></div>
-    <div><label>Trạng thái</label><select id="uActive"><option value="1">Hoạt động</option><option value="0">Khóa</option></select></div>
-  </div>
-  <div class="row" style="margin-top:10px"><button class="btn" id="btnUserSave">Lưu nhân viên</button></div>
-  <h2 style="margin-top:20px">Thiết bị đăng nhập</h2>
-  <div id="devList" class="wrap"></div>
+  <details class="fold">
+    <summary>Tìm hóa đơn (chuyên sâu)</summary>
+    <div class="row" style="align-items:end">
+      <div><label>Từ ngày</label><input id="admFrom" type="date"></div>
+      <div><label>Đến ngày</label><input id="admTo" type="date"></div>
+      <div><label>Nhân viên</label><select id="admStaff"></select></div>
+      <div><label>Mã hóa đơn / bàn</label><input id="admQ" placeholder="Không bắt buộc"></div>
+      <button class="btn" id="admGo" style="flex:0 0 auto">Tìm</button>
+    </div>
+    <div id="admInfo" class="empty"></div>
+    <div id="admList" class="wrap"></div>
+  </details>
+
+  <details class="fold">
+    <summary>Thông tin hóa đơn</summary>
+    <div class="row">
+      <div><label>Tên quán (tiêu đề hóa đơn)</label><input id="sName"></div>
+      <div><label>Địa chỉ</label><input id="sAddr"></div>
+      <div><label>Thuế (%) · nhập 0 để không tính thuế</label><input id="sTax" type="number" min="0" max="100" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label>Ngân hàng (chọn trong danh sách)</label><input id="sBank" list="bankList" autocomplete="off" placeholder="VD: Vietcombank"><datalist id="bankList"></datalist></div>
+      <div><label>Số tài khoản</label><input id="sAcc" inputmode="numeric"></div>
+      <div><label>Chủ tài khoản</label><input id="sHolder"></div>
+    </div>
+    <label>Ảnh mã QR dự phòng (không bắt buộc)</label>
+    <p class="empty" style="margin:2px 0 6px">Khi đã nhập Ngân hàng + Số tài khoản, hóa đơn tự tạo mã QR có sẵn số tiền và nội dung. Ảnh này chỉ dùng khi chưa nhập đủ thông tin.</p>
+    <input id="sQrFile" type="file" accept="image/*">
+    <img id="sQrPrev" class="qrprev" alt="Mã QR" hidden>
+    <div class="row" style="margin-top:8px"><button class="btn" id="btnSetSave">Lưu thông tin hóa đơn</button><button class="btn ghost" id="btnQrDel">Xóa mã QR</button></div>
+    <p class="empty" style="margin-top:6px">Thông tin này lưu trên thiết bị đang dùng. Thiết bị khác cần nhập lại một lần.</p>
+  </details>
+
+  <details class="fold">
+    <summary>Chương trình khuyến mại</summary>
+    <p class="empty" style="margin:0 0 4px">Chương trình tự trừ vào hóa đơn khi thanh toán trong khoảng thời gian áp dụng. Nếu nhiều chương trình trùng giờ, chỉ áp dụng chương trình giảm nhiều nhất. Tiền giảm tính trên số tiền sau chiết khấu khách, trước thuế.</p>
+    <div class="row">
+      <div><label>Tên chương trình</label><input id="pName" maxlength="80" placeholder="VD: Khai trương giảm giá"></div>
+      <div><label>Giảm (%)</label><input id="pPct" type="number" min="0" max="100" step="any" inputmode="decimal"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label>Ngày giờ bắt đầu</label><input id="pStart" type="datetime-local"></div>
+      <div><label>Ngày giờ kết thúc</label><input id="pEnd" type="datetime-local"></div>
+      <div><label>Trạng thái</label><select id="pOn"><option value="1">Bật (áp dụng theo lịch)</option><option value="0">Tắt</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="btnPromoSave">Lưu chương trình</button><button class="btn ghost" id="btnPromoNew">Nhập chương trình mới</button></div>
+    <div id="promoList" class="wrap" style="margin-top:10px"></div>
+  </details>
+
+  <details class="fold">
+    <summary>Nhân viên</summary>
+    <div id="userList" class="wrap"></div>
+    <div class="row" style="margin-top:8px">
+      <div><label>Tên đăng nhập</label><input id="uGit" autocapitalize="none" autocomplete="off"></div>
+      <div><label>Họ tên</label><input id="uName"></div>
+      <div><label>Mật khẩu (để trống = giữ nguyên)</label><input id="uPass" autocomplete="off"></div>
+      <div><label>Vai trò</label><select id="uRole"><option value="BANHANG">Bán hàng</option><option value="KHO">Kho</option><option value="ADMIN">Admin</option></select></div>
+      <div><label>Trạng thái</label><select id="uActive"><option value="1">Hoạt động</option><option value="0">Khóa</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="btnUserSave">Lưu nhân viên</button></div>
+  </details>
+
+  <details class="fold">
+    <summary>Thiết bị đăng nhập</summary>
+    <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="btnRevokeAll">Thu hồi tất cả (trừ admin đầu tiên)</button></div>
+    <div id="devList" class="wrap"></div>
+  </details>
 </section>
 
 </main>
@@ -356,7 +389,7 @@ async function enter() {
 function openTab(t) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === t));
-  if (t === 'sale') loadServerSettings();
+  if (t === 'sale') { loadServerSettings(); refreshPromos(); }
   ({ sale: loadHeld, stock: loadStock, count: loadCount, admin: loadAdmin, report: runReport }[t] || (() => {}))();
 }
 $('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.target.dataset.t); });
@@ -371,6 +404,11 @@ function fillTables() {
   if (list.includes(prev)) sel.value = prev;
 }
 let cart = {}, cur = {};   // cur = { id, openTime } khi đang làm tiếp một hóa đơn đã treo
+/* Chương trình khuyến mại đang chạy (chỉ để xem trước; số tiền thật do máy chủ tính khi lưu hóa đơn) */
+const curPromo = () => { const n = Date.now(); let b = null; (DATA.promos || []).forEach(p => { if (n >= p.startMs && n <= p.endMs && (!b || p.pct > b.pct)) b = p; }); return b; };
+async function refreshPromos() {
+  try { const l = await api('listPromos'); if (JSON.stringify(l) !== JSON.stringify(DATA.promos || [])) { DATA.promos = l; renderCart(); } } catch (e) {}
+}
 const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
 function tickClock() {
   $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
@@ -394,9 +432,11 @@ function renderCart() {
       <td><span class="qty"><button data-d="-1" data-id="${esc(id)}">−</button>${cart[id]}<button data-d="1" data-id="${esc(id)}">+</button></span></td>
       <td class="n">${money(amt)}</td></tr>`;
   }).join('')}</table>` : '<div class="empty">Chạm vào món để thêm.</div>';
-  const p = discPct(), d = Math.round(gross * p / 100);
+  const p = discPct(), d = Math.round(gross * p / 100), pr = curPromo(), pa = pr ? Math.round((gross - d) * pr.pct / 100) : 0;
   $('tGross').textContent = money(gross); $('tDiscLabel').textContent = `Chiết khấu (${p}%)`;
-  $('tDisc').textContent = '-' + money(d); $('tTotal').textContent = money(gross - d);
+  $('tDisc').textContent = '-' + money(d);
+  $('tPromoRow').hidden = !pa; if (pa) { $('tPromoLabel').textContent = `Khuyến mại: ${pr.name} (${pr.pct}%)`; $('tPromo').textContent = '-' + money(pa); }
+  $('tTotal').textContent = money(gross - d - pa);
 }
 $('menuPick').addEventListener('change', e => { const id = e.target.value; if (!id) return; cart[id] = 1; renderCart(); });
 $('cart').addEventListener('click', e => {
@@ -417,7 +457,8 @@ function calcReceipt(items, custType) {
   const lines = items.map(i => { const m = DATA.menu.find(x => String(x.id) === String(i.id)) || { name: String(i.id), price: 0 };
     return { name: m.name, qty: i.qty, price: m.price, amount: m.price * i.qty }; });
   const gross = lines.reduce((t, l) => t + l.amount, 0), pc = Number((DATA.customerTypes.find(c => c.type === custType) || {}).discPct) || 0;
-  return { lines, gross, discPct: pc, discount: Math.round(gross * pc / 100) };
+  const discount = Math.round(gross * pc / 100), pr = curPromo();
+  return { lines, gross, discPct: pc, discount, promoName: pr ? pr.name : '', promoPct: pr ? pr.pct : 0, promoAmt: pr ? Math.round((gross - discount) * pr.pct / 100) : 0 };
 }
 const snapshotOrder = () => ({ cart: { ...cart }, cur: { ...cur }, table: $('saleTable').value, cust: $('saleCust').value, note: $('saleNote').value });
 function restoreOrder(sn) {
@@ -441,7 +482,8 @@ $('btnPay').onclick = async () => {
     const r = await api('saveOrder', payload, 'PAY');
     showReceipt(r);
     paidCache.set(r.id, Promise.resolve({ id: r.id, items: payload.items, table: payload.table, custType: payload.custType, note: payload.note,
-      openTime: sn.cur.openTime, payTime: r.payTime, staff: r.staff || r.staffName || (USER && USER.name) }));
+      openTime: sn.cur.openTime, payTime: r.payTime, staff: r.staff || r.staffName || (USER && USER.name),
+      gross: r.gross, discount: r.discount, discPct: r.discPct, promoName: r.promoName, promoPct: r.promoPct, promoAmt: r.promoAmt }));
     heldCache.delete(r.id); if (sn.cur.id) { heldTables.delete(sn.cur.table); loadHeld(true); } fillTables();
   } catch (err) { $('receipt').hidden = true; loadHeld(true); toast(err.message + (restoreOrder(sn) ? '' : ' (thanh toán chưa được lưu, hãy tạo lại hóa đơn)'), true); }
 };
@@ -467,7 +509,7 @@ const dtParse = s => { const m = String(s || '').match(/(\d{1,2}\/\d{1,2}\/\d{4}
 
 function showReceipt(r, opt) {
   opt = opt || {};
-  const st = getSettings(), gross = Number(r.gross) || 0, disc = Number(r.discount) || 0, pre = gross - disc;
+  const st = getSettings(), gross = Number(r.gross) || 0, disc = Number(r.discount) || 0, promoAmt = Number(r.promoAmt) || 0, pre = gross - disc - promoAmt;
   const tax = Math.round(pre * st.taxPct / 100), grand = pre + tax, hasTax = st.taxPct > 0;
   const o = dtParse(r.openTime), p = dtParse(r.payTime);
   const when = o && p ? `${p.d} (${o.t} - ${p.t})` : `${r.payTime || r.openTime || ''}`;
@@ -487,7 +529,8 @@ function showReceipt(r, opt) {
       ${r.lines.map((l, i) => `<tr><td>${i + 1}. ${esc(l.name)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
     <hr>
     <div class="rr b"><span>Tiền hàng</span><span>${money(gross)}</span></div>
-    <div class="rr i"><span>Khuyến mại (${esc(r.discPct)}%)</span><span>${money(disc)}</span></div>
+    <div class="rr i"><span>Chiết khấu (${esc(r.discPct)}%)</span><span>${money(disc)}</span></div>
+    ${promoAmt > 0 ? `<div class="rr i"><span>Khuyến mại: ${esc(r.promoName)} (${esc(r.promoPct)}%)</span><span>${money(promoAmt)}</span></div>` : ''}
     ${hasTax ? `<div class="rr b"><span>Tiền trước thuế</span><span>${money(pre)}</span></div>
     <div class="rr b"><span>Tiền thuế (${esc(st.taxPct)}%)</span><span>${money(tax)}</span></div>` : ''}
     <hr>
@@ -579,7 +622,7 @@ async function makeQr(text) {
 }
 function receiptText(r, st, grand, when) {
   const lines = (r.lines || []).map((l, i) => `${i + 1}. ${l.name} x${l.qty} = ${money(l.amount)}`).join('\n');
-  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}\nTỔNG THANH TOÁN: ${money(grand)}đ\n✓ Đã thanh toán. Cảm ơn quý khách!`;
+  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}${Number(r.promoAmt) > 0 ? `\nKhuyến mại ${r.promoName} (${r.promoPct}%): -${money(r.promoAmt)}` : ''}\nTỔNG THANH TOÁN: ${money(grand)}đ\n✓ Đã thanh toán. Cảm ơn quý khách!`;
 }
 function loadH2C() {
   return new Promise((ok, no) => {
@@ -651,7 +694,7 @@ async function loadHeld(silent) {
   } catch (e) { if (!silent) toast(e.message, true); }
 }
 $('btnHeldRefresh').onclick = e => run(e.target, () => loadHeld());
-setInterval(() => { if (!$('app').hidden && $('sale').classList.contains('on')) { loadHeld(true); loadServerSettings(); } }, 30000);
+setInterval(() => { if (!$('app').hidden && $('sale').classList.contains('on')) { loadHeld(true); loadServerSettings(); refreshPromos(); } }, 30000);
 $('heldList').addEventListener('click', e => {
   const b = e.target.closest('button') || e.target.closest('tr.hrow'); if (!b) return; const id = b.dataset.id;
   if (b.dataset.a === 'recall') return b.dataset.busy ? null : run(b, async () => {
@@ -699,6 +742,8 @@ async function getPaidOrder(id) {
 async function viewInvoice(inv) {
   if (!inv) return;
   const o = await getPaidOrder(inv.id), c = calcReceipt(o.items, o.custType);
+  if (o.gross != null && o.gross !== '') Object.assign(c, { gross: Number(o.gross), discount: Number(o.discount) || 0, discPct: Number(o.discPct) || 0,   // in lại đúng số tiền đã thanh toán
+    promoName: o.promoName || '', promoPct: Number(o.promoPct) || 0, promoAmt: Number(o.promoAmt) || 0 });
   if (!$('sale').classList.contains('on')) openTab('sale');   // hóa đơn hiện ở tab Bán hàng
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
     openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true });
@@ -796,7 +841,7 @@ async function runReport() {
     const admin = USER.role === 'ADMIN';
     const r = await api('getReport', $('repFrom').value, $('repTo').value, $('repStaff').value), t = r.total, nm = g => esc(r.names[g] || g);
     $('repBody').innerHTML = `
-      <div class="kpis">${kpi('Số hóa đơn', t.invoices)}${kpi('Doanh thu', money(t.revenue))}${kpi('Chiết khấu đã cho', money(t.discount))}
+      <div class="kpis">${kpi('Số hóa đơn', t.invoices)}${kpi('Doanh thu', money(t.revenue))}${kpi('Chiết khấu đã cho', money(t.discount))}${kpi('Khuyến mại đã cho', money(t.promo))}
         ${kpi('Giá vốn hàng bán', money(t.cogs))}${kpi('Lãi gộp', sign(t.gross))}
         ${admin ? kpi('Chênh lệch kiểm kê', sign(t.diff)) + kpi('Lãi/lỗ sau kiểm kê', sign(t.net)) + kpi('Biên lãi', t.margin + '%') + kpi('Tiền nhập hàng', money(t.importCost)) : ''}</div>
       ${admin ? `<h2>Theo nhân viên</h2><div class="wrap">${r.byStaff.length ? `<table>${statHead('Nhân viên')}${r.byStaff.map(s => statRow(nm(s.key), s)).join('')}</table>` : '<div class="empty">Không có dữ liệu.</div>'}</div>` : ''}
@@ -863,14 +908,14 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   else toast(synced ? 'Đã lưu và đồng bộ cho mọi thiết bị.' : 'Đã lưu trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
 });
 async function loadAdmin() {
-  fillSettings();
+  fillSettings(); if (!$('pStart').value && !promoEditId) promoFormReset(); loadPromos();
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
       `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${ROLE_NAME[u.role] || esc(u.role)}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
        <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.role)}" data-a="${u.active ? 1 : 0}">Sửa</button></td></tr>`).join('')}</table>`;
     $('devList').innerHTML = devs.length ? `<table><tr><th>Tên đăng nhập</th><th>Mã thiết bị</th><th>Thiết bị</th><th>Yêu cầu lúc</th><th>Trạng thái</th><th></th></tr>${devs.map(d =>
-      `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}</td><td>
+      `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}${d.root ? '<br><small>Admin đầu tiên</small>' : ''}</td><td>
         ${d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
         ${d.status !== 'REVOKED' ? `<button class="btn ghost sm" data-s="REVOKED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Thu hồi</button>` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có thiết bị nào đăng nhập.</div>';
   } catch (e) { toast(e.message, true); }
@@ -887,6 +932,68 @@ $('btnUserSave').onclick = e => run(e.target, async () => {
   await api('adminSaveUser', { username: $('uGit').value, name: $('uName').value, password: $('uPass').value, role: $('uRole').value, active: $('uActive').value === '1' });
   toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; loadAdmin();
 });
+
+/* ---------- Quản trị: khuyến mại ---------- */
+let promoRows = [], promoEditId = '';
+const PROMO_ST = { RUNNING: ['Đang áp dụng', 'pos'], UPCOMING: ['Chưa bắt đầu', ''], ENDED: ['Đã kết thúc', 'low'], OFF: ['Đang tắt', ''] };
+const nowLocalInput = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+function promoFormReset() {
+  promoEditId = ''; $('pName').value = ''; $('pPct').value = ''; $('pStart').value = nowLocalInput(); $('pEnd').value = ''; $('pOn').value = '1';
+  $('btnPromoSave').textContent = 'Lưu chương trình';
+}
+async function loadPromos() {
+  try {
+    promoRows = await api('adminListPromos');
+    $('promoList').innerHTML = promoRows.length ? `<table><tr><th>Tên chương trình</th><th class="n">Giảm</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tình trạng</th><th></th></tr>${promoRows.map(p => {
+      const st = PROMO_ST[p.state] || [p.state, ''];
+      return `<tr><td>${esc(p.name)}</td><td class="n">${esc(p.pct)}%</td><td>${esc(p.startText)}</td><td>${esc(p.endText)}</td><td class="${st[1]}">${st[0]}</td><td>
+        <button class="btn ghost sm" data-pa="edit" data-id="${esc(p.id)}">Sửa</button>
+        <button class="btn ghost sm" data-pa="toggle" data-id="${esc(p.id)}">${p.enabled ? 'Tắt' : 'Bật'}</button>
+        <button class="btn ghost sm" data-pa="del" data-id="${esc(p.id)}">Xóa</button></td></tr>`; }).join('')}</table>` : '<div class="empty">Chưa có chương trình nào.</div>';
+  } catch (e) { toast(e.message, true); }
+}
+const afterPromoChange = () => { loadPromos(); refreshPromos(); };
+$('btnPromoNew').onclick = promoFormReset;
+$('btnPromoSave').onclick = e => run(e.target, async () => {
+  const name = $('pName').value.trim(), pct = Number($('pPct').value), start = $('pStart').value, end = $('pEnd').value;
+  if (!name) throw new Error('Hãy nhập tên chương trình.');
+  if (!(pct > 0 && pct <= 100)) throw new Error('Phần trăm giảm phải lớn hơn 0 và tối đa 100.');
+  if (!start || !end) throw new Error('Hãy chọn ngày giờ bắt đầu và kết thúc.');
+  if (end <= start) throw new Error('Ngày giờ kết thúc phải sau ngày giờ bắt đầu.');
+  await api('savePromo', { id: promoEditId, name, pct, start, end, enabled: $('pOn').value === '1' });
+  toast('Đã lưu chương trình khuyến mại.'); promoFormReset(); afterPromoChange();
+});
+$('promoList').addEventListener('click', e => {
+  const b = e.target.closest('button[data-pa]'); if (!b) return;
+  const p = promoRows.find(x => x.id === b.dataset.id); if (!p) return;
+  if (b.dataset.pa === 'edit') {
+    promoEditId = p.id; $('pName').value = p.name; $('pPct').value = p.pct; $('pStart').value = p.start; $('pEnd').value = p.end; $('pOn').value = p.enabled ? '1' : '0';
+    $('btnPromoSave').textContent = 'Cập nhật chương trình'; $('pName').scrollIntoView({ behavior: 'smooth', block: 'center' }); return toast('Đang sửa "' + p.name + '". Sửa xong bấm Cập nhật chương trình.');
+  }
+  if (b.dataset.pa === 'toggle') return run(b, async () => {
+    await api('savePromo', { id: p.id, name: p.name, pct: p.pct, start: p.start, end: p.end, enabled: !p.enabled });
+    toast(p.enabled ? 'Đã tắt chương trình.' : 'Đã bật chương trình.'); afterPromoChange();
+  });
+  if (b.dataset.pa === 'del') {
+    if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Bấm lại để xóa'; return; }
+    run(b, async () => { await api('deletePromo', p.id); if (promoEditId === p.id) promoFormReset(); toast('Đã xóa chương trình.'); afterPromoChange(); });
+  }
+});
+
+/* ---------- Quản trị: thu hồi tất cả thiết bị (trừ admin đầu tiên) ---------- */
+const REVOKE_LABEL = 'Thu hồi tất cả (trừ admin đầu tiên)';
+$('btnRevokeAll').onclick = e => {
+  const b = e.target;
+  if (!b.dataset.sure) {
+    b.dataset.sure = 1; b.textContent = 'Bấm lại để xác nhận thu hồi tất cả';
+    setTimeout(() => { delete b.dataset.sure; b.textContent = REVOKE_LABEL; }, 5000); return;
+  }
+  delete b.dataset.sure; b.textContent = REVOKE_LABEL;
+  run(b, async () => {
+    const r = await api('adminRevokeAllDevices');
+    toast(r.count ? `Đã thu hồi ${r.count} thiết bị (giữ nguyên thiết bị của ${r.keep}).` : 'Không có thiết bị nào cần thu hồi.'); loadAdmin();
+  });
+};
 
 /* ---------- Khởi động: thử khôi phục phiên cũ ---------- */
 (async function boot() {
