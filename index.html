@@ -311,6 +311,10 @@ $('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.tar
 /* ---------- Bán hàng: hóa đơn có số, treo / gọi lại / thanh toán ---------- */
 let cart = {}, cur = {};   // cur = { id, openTime } khi đang làm tiếp một hóa đơn đã treo
 const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
+function tickClock() {
+  $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
+}
+setInterval(tickClock, 1000);
 function resetOrder() { cart = {}; cur = {}; $('saleNote').value = ''; renderCart(); }
 function renderMenu() {
   const left = DATA.menu.filter(m => !(m.id in cart));
@@ -322,7 +326,7 @@ function renderCart() {
   const ids = Object.keys(cart); let gross = 0;
   renderMenu();
   $('invNo').textContent = cur.id ? 'Hóa đơn ' + cur.id : 'Hóa đơn mới (chưa có số)';
-  $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
+  tickClock();
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
     const m = DATA.menu.find(x => x.id === id), amt = m.price * cart[id]; gross += amt;
     return `<tr><td>${esc(m.name)}<br><small>${money(m.price)}đ</small></td>
