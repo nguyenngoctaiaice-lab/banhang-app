@@ -188,7 +188,7 @@
 
 <section class="tab" id="count">
   <h2>Kiểm kê kho</h2>
-  <p class="empty" style="margin-top:0">Nhập số đếm thực tế. Món để trống sẽ được bỏ qua.</p>
+  <p class="empty" style="margin-top:0">Nhập số đếm thực tế. Món để trống sẽ được bỏ qua. Sau khi lưu, đợt kiểm kê ở trạng thái "chờ cân đối": tồn kho chỉ được điều chỉnh khi admin bấm "Thực hiện cân đối" (tab Quản trị).</p>
   <div id="countBody" class="wrap"></div>
   <div class="row" style="margin-top:12px"><button class="btn" id="btnCountSave">Lưu kiểm kê</button></div>
 </section>
@@ -230,6 +230,18 @@
       <button class="btn ghost" id="aimpAll" style="flex:0 0 auto">Xem tất cả</button>
     </div>
     <div id="aimpBody"></div>
+  </details>
+
+  <details class="fold">
+    <summary>Kiểm kê &amp; cân đối kho</summary>
+    <p class="empty" style="margin:0">Đợt kiểm kê mới ở trạng thái "chờ cân đối". Bấm "Thực hiện cân đối" để đưa tồn kho về đúng số thực tế và tính chênh lệch vào báo cáo. Để trống ngày = xem tất cả.</p>
+    <div class="row" style="align-items:end">
+      <div><label>Từ ngày</label><input id="skFrom" type="date"></div>
+      <div><label>Đến ngày</label><input id="skTo" type="date"></div>
+      <button class="btn" id="skGo" style="flex:0 0 auto">Xem</button>
+      <button class="btn ghost" id="skAll" style="flex:0 0 auto">Xem tất cả</button>
+    </div>
+    <div id="skBody"></div>
   </details>
 
   <details class="fold">
@@ -980,7 +992,7 @@ async function loadStock() {
     $('stockBody').innerHTML = `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Tồn</th><th class="n">Đã bán</th><th class="n">Chênh lệch</th><th class="n">Giá trị</th></tr>
       ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${fmtQty(x.stockIn)} ${esc(x.unit)}</td><td class="n">${fmtQty(x.sold)}</td><td class="n ${x.low ? 'low' : ''}">${fmtDiff(x.qty)}</td><td class="n">${money(x.value)}</td></tr>`).join('')}
       <tr><th colspan="4" class="n">Tổng giá trị tồn</th><th class="n">${money(r.totalValue)}</th></tr></table>
-      <p class="empty">Chênh lệch = Tồn − Đã bán (số âm = đã bán nhiều hơn số hàng đã nhập). Giá trị = Chênh lệch × giá vốn của món.</p>`;
+      <p class="empty">Chênh lệch = Tồn − Đã bán (số âm = đã bán nhiều hơn số hàng đã nhập). Giá trị = Chênh lệch × giá vốn của món.${r.pendingCount ? ` <b class="low">Có ${r.pendingCount} đợt kiểm kê đang chờ admin cân đối (chưa tính vào số trên).</b>` : ''}</p>`;
   } catch (e) { toast(e.message, true); }
 }
 $('btnStockRefresh').onclick = e => run(e.target, loadStock);
@@ -1003,8 +1015,68 @@ $('countBody').addEventListener('input', e => {
 $('btnCountSave').onclick = e => run(e.target, async () => {
   const rows = [...document.querySelectorAll('#countBody input')].map(i => ({ id: i.dataset.id, actual: i.value.trim() === '' ? '' : parseNum(i.value) }));
   const r = await api('saveStocktake', rows);
-  toast(`Đã kiểm kê ${r.count} món · chênh lệch ${money(r.diffValue)}đ`); loadCount();
+  toast(`Đã lưu kiểm kê ${r.count} món · chờ admin cân đối`); loadCount();
 });
+
+/* ---------- Quản trị: kiểm kê & cân đối kho ---------- */
+let skData = null, skEdit = {};
+const skOf = id => skData.sessions.find(s => s.id === id);
+const skBox = id => $('skBody').querySelector(`details[data-id="${CSS.escape(id)}"] .rb`);
+const sgn = n => (n > 0 ? '+' : '') + money(n);
+const cls = n => n < 0 ? 'neg' : n > 0 ? 'pos' : '';
+function paintSk(id) {
+  const s = skOf(id), rb = skBox(id), ed = skEdit[id]; if (!s || !rb) return;
+  if (!ed) {
+    rb.innerHTML = `<div class="empty" style="padding:4px 0">${s.applied ? `Đã cân đối${s.appliedAt ? ' lúc ' + esc(s.appliedAt) : ''}${s.appliedBy ? ' bởi ' + esc(s.appliedBy) : ''}` : 'Chưa cân đối: chưa ảnh hưởng tồn kho và báo cáo. Sổ sách bên dưới tính theo tồn kho hiện tại.'}</div>
+      <div class="wrap"><table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th class="n">Giá trị</th></tr>
+      ${s.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${fmtQty(l.book)}</td><td class="n">${fmtQty(l.actual)}</td><td class="n ${cls(l.diff)}">${fmtDiff(l.diff)}</td><td class="n ${cls(l.diffValue)}">${sgn(l.diffValue)}</td></tr>`).join('')}</table></div>
+      <div class="row" style="margin-top:8px">${s.applied ? '<button class="btn ghost sm" data-a="unapply">Hoàn tác cân đối</button>'
+        : '<button class="btn sm" data-a="apply">Thực hiện cân đối</button><button class="btn ghost sm" data-a="edit">Sửa</button><button class="btn ghost sm" data-a="del">Xóa</button>'}</div>`;
+    return;
+  }
+  rb.innerHTML = `<div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">Thực tế</th><th></th></tr>
+    ${ed.lines.map((l, i) => `<tr><td>${esc(l.name)}</td><td><input data-f="a" data-i="${i}" data-fmt="dec" inputmode="decimal" value="${esc(fmtQty(l.actual))}" style="min-width:90px"></td><td><button class="btn ghost sm" data-a="rm" data-i="${i}">Xóa dòng</button></td></tr>`).join('')}</table></div>
+    <div class="row" style="align-items:end;margin-top:8px">
+      <div><label>Thêm mặt hàng</label><select data-f="ni"><option value="">-- Chọn mặt hàng --</option>${DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select></div>
+      <div><label>Thực tế</label><input data-f="na" data-fmt="dec" inputmode="decimal"></div>
+      <button class="btn ghost" data-a="add" style="flex:0 0 auto">Thêm dòng</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Lưu thay đổi</button><button class="btn ghost" data-a="cancel">Hủy</button></div>`;
+}
+function syncSk(id) { const rb = skBox(id), ed = skEdit[id]; if (rb && ed) rb.querySelectorAll('[data-f="a"]').forEach(i => ed.lines[+i.dataset.i].actual = i.value.trim() === '' ? '' : parseNum(i.value)); }
+async function loadSk(all) {
+  if (all) { $('skFrom').value = ''; $('skTo').value = ''; }
+  const open = new Set([...$('skBody').querySelectorAll('details[data-id][open]')].map(d => d.dataset.id));
+  skData = await api('listStocktakes', $('skFrom').value, $('skTo').value); skEdit = {};
+  const r = skData, el = $('skBody');
+  if (!r.sessions.length) { el.innerHTML = '<div class="empty">Chưa có đợt kiểm kê nào trong khoảng này.</div>'; return; }
+  el.innerHTML = `<div class="kpis"><div class="kpi"><span>Số đợt kiểm kê</span><b>${r.count}</b></div><div class="kpi"><span>Đang chờ cân đối</span><b class="${r.pending ? 'low' : ''}">${r.pending}</b></div><div class="kpi"><span>Chênh lệch đã cân đối (giá vốn)</span><b class="${cls(r.totalDiff)}">${sgn(r.totalDiff)}đ</b></div></div>` +
+    r.sessions.map(s => `<details class="fold" data-id="${esc(s.id)}" ${open.has(s.id) || (!s.applied && !open.size) ? 'open' : ''}><summary>${esc(s.time)} · ${esc(s.staff)} · ${s.applied ? '<span class="pos">Đã cân đối</span>' : '<span class="low">Chờ cân đối</span>'} · <b class="${cls(s.diffValue)}">${sgn(s.diffValue)}đ</b></summary><div class="rb"></div></details>`).join('');
+  r.sessions.forEach(s => paintSk(s.id));
+}
+$('skBody').addEventListener('input', e => { const f = e.target.dataset && e.target.dataset.fmt; if (f) fmtField(e.target, f === 'dec', e.data); });
+$('skBody').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'), det = b && b.closest('details[data-id]'); if (!det) return;
+  const id = det.dataset.id, a = b.dataset.a, s = skOf(id), after = async () => { await loadSk(false); const d = $('skBody').querySelector(`details[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; };
+  if (a === 'edit') { skEdit[id] = { lines: s.lines.map(l => ({ id: l.itemId, name: l.name, actual: l.actual })) }; paintSk(id); }
+  else if (a === 'cancel') { delete skEdit[id]; paintSk(id); }
+  else if (a === 'rm') { syncSk(id); skEdit[id].lines.splice(+b.dataset.i, 1); paintSk(id); }
+  else if (a === 'add') {
+    syncSk(id); const rb = skBox(id), mid = rb.querySelector('[data-f="ni"]').value, v = rb.querySelector('[data-f="na"]').value;
+    if (!mid || v.trim() === '') return toast('Chọn mặt hàng và nhập số thực tế.', true);
+    skEdit[id].lines.push({ id: mid, name: DATA.menu.find(m => String(m.id) === String(mid)).name, actual: parseNum(v) }); paintSk(id);
+  }
+  else if (a === 'save') run(b, async () => {
+    syncSk(id); const ed = skEdit[id];
+    if (!ed.lines.length) throw new Error('Phải còn ít nhất 1 dòng. Muốn bỏ cả đợt hãy bấm Xóa.');
+    if (ed.lines.some(l => l.actual === '')) throw new Error('Có dòng chưa nhập số thực tế.');
+    await api('adminUpdateStocktake', id, { items: ed.lines.map(l => ({ id: l.id, actual: l.actual })) }); toast('Đã sửa đợt kiểm kê.'); await after();
+  });
+  else if (a === 'del') { if (confirm('Xóa đợt kiểm kê này? Không thể hoàn tác.')) run(b, async () => { await api('adminDeleteStocktake', id); toast('Đã xóa đợt kiểm kê.'); await loadSk(false); }); }
+  else if (a === 'apply') { if (confirm('Thực hiện cân đối? Tồn kho sẽ được đưa về đúng số thực tế đã đếm và chênh lệch được tính vào báo cáo lãi/lỗ.')) run(b, async () => { const r = await api('adminApplyStocktake', id); toast(`Đã cân đối ${r.count} món · chênh lệch ${sgn(r.diffValue)}đ`); await after(); }); }
+  else if (a === 'unapply') { if (confirm('Hoàn tác cân đối? Tồn kho và báo cáo sẽ trở lại như trước khi cân đối.')) run(b, async () => { await api('adminUnapplyStocktake', id); toast('Đã hoàn tác cân đối.'); await after(); }); }
+});
+$('skGo').onclick = e => run(e.target, () => loadSk(false));
+$('skAll').onclick = e => run(e.target, () => loadSk(true));
 
 /* ---------- Báo cáo (ngày / tuần / tháng / theo nhân viên) ---------- */
 $('quick').addEventListener('click', e => {
