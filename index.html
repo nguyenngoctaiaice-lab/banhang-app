@@ -1112,7 +1112,7 @@ function paintSk(id) {
     rb.innerHTML = `<div class="empty" style="padding:4px 0">${s.applied ? `Đã cân đối${s.appliedAt ? ' lúc ' + esc(s.appliedAt) : ''}${s.appliedBy ? ' bởi ' + esc(s.appliedBy) : ''}` : 'Chưa cân đối: chưa ảnh hưởng tồn kho và báo cáo. Sổ sách bên dưới tính theo tồn kho hiện tại.'}</div>
       <div class="wrap"><table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th class="n">Thực tế</th><th class="n">Chênh lệch</th><th class="n">Giá trị</th></tr>
       ${s.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${fmtQty(l.book)}</td><td class="n">${fmtQty(l.actual)}</td><td class="n ${cls(l.diff)}">${fmtDiff(l.diff)}</td><td class="n ${cls(l.diffValue)}">${sgn(l.diffValue)}</td></tr>`).join('')}</table></div>
-      <div class="row" style="margin-top:8px">${s.applied ? '<button class="btn ghost sm" data-a="unapply">Hoàn tác cân đối</button>'
+      <div class="row" style="margin-top:8px">${s.applied ? '<button class="btn ghost sm" data-a="unapply">Hoàn tác cân đối</button><button class="btn ghost sm" data-a="del">Xóa</button>'
         : '<button class="btn sm" data-a="apply">Thực hiện cân đối</button><button class="btn ghost sm" data-a="edit">Sửa</button><button class="btn ghost sm" data-a="del">Xóa</button>'}</div>`;
     return;
   }
@@ -1167,7 +1167,7 @@ $('skBody').addEventListener('click', e => {
     if (!ed.lines.length) throw new Error('Phải còn ít nhất 1 dòng. Muốn bỏ cả đợt hãy bấm Xóa.');
     await api('adminUpdateStocktake', id, { items: ed.lines.map(l => ({ id: l.id, actual: l.actual })) }); toast('Đã sửa đợt kiểm kê.'); await after();
   });
-  else if (a === 'del') { if (confirm('Xóa đợt kiểm kê này? Không thể hoàn tác.')) run(b, async () => { await api('adminDeleteStocktake', id); toast('Đã xóa đợt kiểm kê.'); await loadSk(false); }); }
+  else if (a === 'del') { if (confirm(skOf(id) && skOf(id).applied ? 'Xóa đợt kiểm kê ĐÃ CÂN ĐỐI này? Tồn kho và báo cáo lãi/lỗ sẽ trở lại như chưa từng kiểm kê đợt này. Không thể hoàn tác.' : 'Xóa đợt kiểm kê này? Không thể hoàn tác.')) run(b, async () => { await api('adminDeleteStocktake', id); toast('Đã xóa đợt kiểm kê.'); await loadSk(false); }); }
   else if (a === 'apply') { if (confirm('Thực hiện cân đối? Tồn kho sẽ được đưa về đúng số thực tế đã đếm và chênh lệch được tính vào báo cáo lãi/lỗ.')) run(b, async () => { const r = await api('adminApplyStocktake', id); toast(`Đã cân đối ${r.count} món · chênh lệch ${sgn(r.diffValue)}đ`); await after(); }); }
   else if (a === 'unapply') { if (confirm('Hoàn tác cân đối? Tồn kho và báo cáo sẽ trở lại như trước khi cân đối.')) run(b, async () => { await api('adminUnapplyStocktake', id); toast('Đã hoàn tác cân đối.'); await after(); }); }
 });
