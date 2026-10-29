@@ -2,12 +2,11 @@ name: Build Android APK
 
 on:
   workflow_dispatch:          # bấm tay: tab Actions > Build Android APK > Run workflow
-
-
   push:
     paths:
       - package.json
       - .github/workflows/android-apk.yml
+      - android-native/**
 
 permissions:
   contents: write             # để đăng file APK lên mục Releases
@@ -55,6 +54,14 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+
+      - name: Thêm cầu nối in và chia sẻ Zalo
+        run: |
+          D=android/app/src/main/java/vn/banhang/app
+          mkdir -p "$D"
+          cp android-native/AppBridgePlugin.java "$D/AppBridgePlugin.java"
+          cp android-native/MainActivity.java "$D/MainActivity.java"
+          cp android-native/file_paths.xml android/app/src/main/res/xml/file_paths.xml
 
       - name: Build APK
         working-directory: android
