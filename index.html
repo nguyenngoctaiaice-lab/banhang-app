@@ -113,6 +113,10 @@
   <label style="text-align:left">Mật khẩu</label><input id="lPass" type="password" autocomplete="current-password">
   <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink);text-align:left"><input type="checkbox" id="lRemember" style="width:auto"> Ghi nhớ tên đăng nhập và mật khẩu</label>
   <button class="btn" id="btnLogin" style="margin-top:14px;width:100%">Đăng nhập</button>
+  <div id="otpBox" hidden style="margin-top:12px;text-align:left">
+    <label>Mã OTP (gửi qua Gmail)</label><input id="lOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chữ số">
+    <div class="row" style="margin-top:10px"><button class="btn" id="btnOtp">Xác nhận OTP</button><button class="btn ghost" id="btnOtpBack" type="button">Gửi lại / quay lại</button></div>
+  </div>
   <p id="loginMsg" class="empty"></p>
   <p class="empty" style="margin:0">Mã thiết bị: <b id="devCode"></b> <button type="button" class="btn ghost sm" id="btnCopy">Sao chép</button></p>
 </div>
@@ -412,17 +416,32 @@ $('btnCopy').onclick = async e => {
 
 function showLogin(msg) {
   TOKEN = ''; USER = null; store.del('bh_token');
-  $('app').hidden = true; $('login').hidden = false; $('lPass').value = ''; loadSaved();
+  $('app').hidden = true; $('login').hidden = false; $('lPass').value = ''; loadSaved(); otpReset();
   $('devCode').textContent = deviceId().slice(0, 8).toUpperCase(); loginMsg(msg, !!msg);
 }
 $('btnLogin').onclick = e => run(e.target, async () => {
   loginMsg('');
   const p = await call('login', [$('lUser').value, $('lPass').value, deviceId(), deviceName()], false);
+  if (p.status === 'otp') { otpTicket = p.ticket; $('otpBox').hidden = false; $('btnLogin').hidden = true; $('lOtp').value = ''; $('lOtp').focus(); return loginMsg(p.message); }
   if (p.status !== 'ok') return loginMsg(p.message, true);
+  await loginOk(p);
+});
+/* Admin tối cao: thiết bị lạ cần nhập OTP gửi về Gmail */
+let otpTicket = '';
+function otpReset() { otpTicket = ''; $('otpBox').hidden = true; $('btnLogin').hidden = false; $('lOtp').value = ''; }
+async function loginOk(p) {
   TOKEN = p.token; store.set('bh_token', TOKEN);
   if ($('lRemember').checked) store.set('bh_cred', JSON.stringify({ u: $('lUser').value, p: $('lPass').value })); else store.del('bh_cred');
-  $('lPass').value = ''; await enter();
+  $('lPass').value = ''; otpReset(); await enter();
+}
+$('btnOtp').onclick = e => run(e.target, async () => {
+  loginMsg('');
+  const p = await call('verifyOtp', [otpTicket, $('lOtp').value, deviceId(), deviceName()], false);
+  if (p.status !== 'ok') return loginMsg(p.message, true);
+  await loginOk(p);
 });
+$('btnOtpBack').onclick = () => { otpReset(); loginMsg('Bấm "Đăng nhập" để nhận mã OTP mới.'); };
+$('lOtp').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnOtp').click(); });
 $('lPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
 $('btnLogout').onclick = () => { call('logout', []).catch(() => {}); showLogin(''); };
 
@@ -1245,13 +1264,19 @@ async function loadAdmin() {
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
-      `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(roleText(u.roles)) || '<span class="neg">Chưa có</span>'}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
-       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}">Sửa</button>${u.username === USER.username || PROTECTED_USERS.includes(u.username) ? '' : ` <button class="btn ghost sm" data-del="${esc(u.username)}">Xóa</button>`}</td></tr>`).join('')}</table>`;
+      `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(roleText(u.roles)) || '<span class="neg">Chưa có</span>'}</td><td>${u.super ? '<span style="opacity:.4;pointer-events:none;user-select:none" title="Admin tối cao: không thể thay đổi trạng thái">Hoạt động</span>' : u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
+       <td><button class="btn ghost sm" ${u.super && USER.username !== u.username ? 'disabled title="Chỉ chính admin tối cao được sửa"' : ''} data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}" data-sup="${u.super ? 1 : 0}">Sửa</button>${u.username === USER.username || u.super || PROTECTED_USERS.includes(u.username) ? '' : ` <button class="btn ghost sm" data-del="${esc(u.username)}">Xóa</button>`}</td></tr>`).join('')}</table>`;
     $('devList').innerHTML = devs.length ? `<table><tr><th>Tên đăng nhập</th><th>Mã thiết bị</th><th>Thiết bị</th><th>Yêu cầu lúc</th><th>Trạng thái</th><th></th></tr>${devs.map(d =>
       `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}${d.deviceId === deviceId() ? '<br><small>Thiết bị đang dùng</small>' : ''}</td><td>
-        ${d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
-        ${d.status !== 'REVOKED' ? `<button class="btn ghost sm" data-s="REVOKED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Thu hồi</button>` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có thiết bị nào đăng nhập.</div>';
+        ${d.super && !USER.super ? '<small class="empty">Admin tối cao</small>' : d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
+        ${d.super && !USER.super ? '' : d.status !== 'REVOKED' ? `<button class="btn ghost sm" data-s="REVOKED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Thu hồi</button>` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có thiết bị nào đăng nhập.</div>';
   } catch (e) { toast(e.message, true); }
+}
+/* Admin tối cao: ô Trạng thái bị làm mờ, không ai chọn được */
+function lockActive(on) {
+  const s = $('uActive'), box = s.parentElement; s.disabled = on; box.style.opacity = on ? '.4' : ''; box.style.pointerEvents = on ? 'none' : '';
+  box.title = on ? 'Admin tối cao: không thể khóa hay thay đổi trạng thái' : '';
+  if (on) s.value = '1';
 }
 const roleBoxes = () => [...document.querySelectorAll('#uRoles input')];
 function setRoles(list) {
@@ -1268,7 +1293,7 @@ $('userList').addEventListener('click', e => {
   const d = e.target.dataset;
   if (d.del) { if (confirm('Xóa tài khoản "' + d.del + '"? Các thiết bị của tài khoản này cũng bị xóa. Hóa đơn và phiếu cũ vẫn được giữ.')) run(e.target, async () => { await api('adminDeleteUser', d.del); toast('Đã xóa nhân viên ' + d.del); loadAdmin(); }); return; }
   if (!d.edit) return;
-  $('uGit').value = d.edit; $('uName').value = d.n; setRoles(d.r.split(',')); $('uActive').value = d.a;
+  $('uGit').value = d.edit; $('uName').value = d.n; setRoles(d.r.split(',')); $('uActive').value = d.a; lockActive(d.sup === '1');
 });
 $('devList').addEventListener('click', e => {
   const d = e.target.dataset; if (!d.s) return;
@@ -1276,7 +1301,7 @@ $('devList').addEventListener('click', e => {
 });
 $('btnUserSave').onclick = e => run(e.target, async () => {
   await api('adminSaveUser', { username: $('uGit').value, name: $('uName').value, password: $('uPass').value, roles: getRoles(), active: $('uActive').value === '1' });
-  toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; setRoles([]); loadAdmin();
+  toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; setRoles([]); lockActive(false); loadAdmin();
 });
 
 /* ---------- Quản trị: khuyến mại ---------- */
