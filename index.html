@@ -339,7 +339,7 @@ function renderMenu() {
   const left = DATA.menu.filter(m => !(m.id in cart));
   $('menuPick').disabled = !left.length;
   $('menuPick').innerHTML = `<option value="">${left.length ? '— Chọn món để thêm —' : 'Đã chọn hết các món'}</option>` +
-    left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} — ${money(m.price)}đ</option>`).join('');
+    left.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
 }
 function renderCart() {
   const ids = Object.keys(cart); let gross = 0;
