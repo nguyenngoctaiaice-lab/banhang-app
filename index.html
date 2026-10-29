@@ -652,7 +652,7 @@ function showReceipt(r, opt) {
       ${opt.reprint ? '' : dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
       <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
     <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" ${opt.reprint ? '' : 'hidden'}>✓ ĐÃ THANH TOÁN</div>
-    ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button>${opt.reprint ? '' : '<button class="btn sm" data-a="confirm">Xác nhận thanh toán</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
+    ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button>${opt.reprint ? '' : '<button class="btn sm" data-a="confirm">Xác nhận thanh toán</button><button class="btn sm" data-a="confirmprint">Xác nhận &amp; in</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
     <div id="sharePanel" class="noprint" ${opt.reprint ? '' : 'hidden'} style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
       <div style="font-weight:700;margin-bottom:6px">Chia sẻ hóa đơn cho khách</div>
       <div class="row"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button></div>
@@ -787,9 +787,11 @@ $('receipt').addEventListener('click', e => {
   const a = e.target.dataset.a;
   if (a === 'print') run(e.target, doPrint);
   if (a === 'close') $('receipt').hidden = true;
-  if (a === 'confirm') {
-    $('paidMark').hidden = false; $('sharePanel').hidden = false; e.target.hidden = true;
+  if (a === 'confirm' || a === 'confirmprint') {
+    $('paidMark').hidden = false; $('sharePanel').hidden = false;
+    $('receipt').querySelectorAll('[data-a="confirm"],[data-a="confirmprint"]').forEach(b => b.hidden = true);
     toast('Đã xác nhận thanh toán. Bạn có thể chia sẻ hóa đơn cho khách.');
+    if (a === 'confirmprint') run(e.target, doPrint);   // xác nhận xong in luôn (máy tính tiền bật --kiosk-printing thì ra thẳng máy in nhiệt)
   }
   if (a === 'share') run(e.target, shareReceipt);
 });
