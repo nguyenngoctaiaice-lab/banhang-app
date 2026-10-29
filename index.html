@@ -100,6 +100,7 @@
   details.fold { margin-top:16px; border-top:1px solid var(--line); padding-top:8px; }
   details.fold:first-of-type { margin-top:0; border-top:0; padding-top:0; }
   details.fold > summary { font-size:16px; font-weight:700; text-align:center; cursor:pointer; padding:8px 0; user-select:none; }
+  .bdg { display:inline-block; min-width:18px; height:18px; line-height:18px; padding:0 5px; margin-right:6px; border-radius:9px; background:#d32f2f; color:#fff; font-size:12px; font-weight:700; text-align:center; vertical-align:middle; }
   details.fold[open] > summary { margin-bottom:6px; }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
 </style>
@@ -246,7 +247,7 @@
   </details>
 
   <details class="fold">
-    <summary>Kiểm kê &amp; cân đối kho</summary>
+    <summary data-bdg="stk">Kiểm kê &amp; cân đối kho</summary>
     <p class="empty" style="margin:0">Đợt kiểm kê mới ở trạng thái "chờ cân đối". Bấm "Thực hiện cân đối" để đưa tồn kho về đúng số thực tế và tính chênh lệch vào báo cáo. Để trống ngày = xem tất cả.</p>
     <div class="row" style="align-items:end">
       <div><label>Từ ngày</label><input id="skFrom" type="date"></div>
@@ -320,7 +321,7 @@
   </details>
 
   <details class="fold">
-    <summary>Thiết bị đăng nhập</summary>
+    <summary data-bdg="dev">Thiết bị đăng nhập</summary>
     <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="btnRevokeAll">Xóa tất cả thiết bị (trừ thiết bị đang dùng)</button></div>
     <div id="devList" class="wrap"></div>
   </details>
@@ -477,7 +478,7 @@ async function enter() {
   const mine = TABS.filter(t => admin || t.roles.some(r => (USER.roles || []).includes(r)));
   $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
   $('login').hidden = true; $('app').hidden = false;
-  resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id);
+  resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id); refreshBadges();
 }
 function openTab(t) {
   if (t !== 'admin') applyTheme(getSettings().theme, getSettings().fx);
@@ -1125,6 +1126,7 @@ async function loadSk(all) {
   if (all) { $('skFrom').value = ''; $('skTo').value = ''; }
   const open = new Set([...$('skBody').querySelectorAll('details[data-id][open]')].map(d => d.dataset.id));
   skData = await api('listStocktakes', $('skFrom').value, $('skTo').value); skEdit = {};
+  if (!$('skFrom').value && !$('skTo').value) { BDG.stk = skData.pending || 0; paintBadges(); }
   const r = skData, el = $('skBody');
   if (!r.sessions.length) { el.innerHTML = '<div class="empty">Chưa có đợt kiểm kê nào trong khoảng này.</div>'; return; }
   el.innerHTML = `<div class="kpis"><div class="kpi"><span>Số đợt kiểm kê</span><b>${r.count}</b></div><div class="kpi"><span>Đang chờ cân đối</span><b class="${r.pending ? 'low' : ''}">${r.pending}</b></div><div class="kpi"><span>Chênh lệch đã cân đối (giá vốn)</span><b class="${cls(r.totalDiff)}">${sgn(r.totalDiff)}đ</b></div></div>` +
@@ -1259,10 +1261,30 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   if (b && !bankBin(b)) toast('Đã lưu, nhưng chưa nhận ra ngân hàng "' + b + '". Hãy chọn từ danh sách gợi ý để tạo QR tự động.', true);
   else toast(synced ? 'Đã lưu và đồng bộ cho mọi thiết bị.' : 'Đã lưu trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
 });
+/* Chấm đỏ số thông báo (trắng trên đỏ) cạnh mũi tên của từng mục Quản trị */
+const BDG = { stk: 0, dev: 0 };
+function setBadge(el, n) {
+  if (!el) return; let b = el.querySelector(':scope > .bdg');
+  if (!n) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('span'); b.className = 'bdg'; el.insertBefore(b, el.firstChild); }
+  b.textContent = n > 99 ? '99+' : n; b.title = n + ' việc cần xử lý';
+}
+function paintBadges() {
+  document.querySelectorAll('summary[data-bdg]').forEach(el => setBadge(el, BDG[el.dataset.bdg]));
+  setBadge(document.querySelector('#tabs button[data-t="admin"]'), BDG.stk + BDG.dev);
+}
+async function refreshBadges() {   // chỉ admin: đợt kiểm kê chờ cân đối + thiết bị chờ duyệt
+  if (!USER || USER.role !== 'ADMIN') return;
+  try {
+    const [k, d] = await Promise.all([api('listStocktakes', '', ''), api('adminListDevices')]);
+    BDG.stk = k.pending || 0; BDG.dev = d.filter(x => x.status === 'PENDING').length; paintBadges();
+  } catch (e) {}
+}
 async function loadAdmin() {
   fillSettings(); fillTheme(); if (!$('pStart').value && !promoEditId) promoFormReset(); loadPromos();
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
+    BDG.dev = devs.filter(x => x.status === 'PENDING').length; paintBadges(); refreshBadges();
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
       `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(roleText(u.roles)) || '<span class="neg">Chưa có</span>'}</td><td>${u.super ? '<span style="opacity:.4;pointer-events:none;user-select:none" title="Admin tối cao: không thể thay đổi trạng thái">Hoạt động</span>' : u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
        <td><button class="btn ghost sm" ${u.super && USER.username !== u.username ? 'disabled title="Chỉ chính admin tối cao được sửa"' : ''} data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}" data-sup="${u.super ? 1 : 0}">Sửa</button>${u.username === USER.username || u.super || PROTECTED_USERS.includes(u.username) ? '' : ` <button class="btn ghost sm" data-del="${esc(u.username)}">Xóa</button>`}</td></tr>`).join('')}</table>`;
