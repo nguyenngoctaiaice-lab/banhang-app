@@ -73,7 +73,7 @@
   #receipt th { color:#666; } #receipt td.n, #receipt th.n { text-align:right; }
   #receipt .rr { display:flex; justify-content:space-between; gap:8px; padding:2px 0; } #receipt .rr.b { font-weight:700; } #receipt .rr.i { font-style:italic; }
   #receipt .grand { display:flex; justify-content:space-between; font-size:20px; font-weight:700; padding:6px 0; }
-  #receipt .qr { display:block; margin:6px auto; width:110px; max-width:100%; height:auto; }
+  #receipt .qr { display:block; margin:6px auto; width:150px; max-width:100%; height:auto; }
   #receipt .bankinfo { font-size:12px; line-height:1.35; }
   .qrprev { display:block; max-width:160px; margin:8px 0; border:1px solid var(--line); border-radius:6px; }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } .noprint { visibility:hidden !important; } }
@@ -170,11 +170,12 @@
     <div><label>Thuế (%) · nhập 0 để không tính thuế</label><input id="sTax" type="number" min="0" max="100" step="any" inputmode="decimal"></div>
   </div>
   <div class="row" style="margin-top:8px">
-    <div><label>Tên ngân hàng</label><input id="sBank"></div>
+    <div><label>Ngân hàng (chọn trong danh sách)</label><input id="sBank" list="bankList" autocomplete="off" placeholder="VD: Vietcombank"><datalist id="bankList"></datalist></div>
     <div><label>Số tài khoản</label><input id="sAcc" inputmode="numeric"></div>
     <div><label>Chủ tài khoản</label><input id="sHolder"></div>
   </div>
-  <label>Mã QR thanh toán (ảnh)</label>
+  <label>Ảnh mã QR dự phòng (không bắt buộc)</label>
+  <p class="empty" style="margin:2px 0 6px">Khi đã nhập Ngân hàng + Số tài khoản, hóa đơn tự tạo mã QR có sẵn số tiền và nội dung. Ảnh này chỉ dùng khi chưa nhập đủ thông tin.</p>
   <input id="sQrFile" type="file" accept="image/*">
   <img id="sQrPrev" class="qrprev" alt="Mã QR" hidden>
   <div class="row" style="margin-top:8px"><button class="btn" id="btnSetSave">Lưu thông tin hóa đơn</button><button class="btn ghost" id="btnQrDel">Xóa mã QR</button></div>
@@ -394,7 +395,8 @@ function showReceipt(r) {
   const o = dtParse(r.openTime), p = dtParse(r.payTime);
   const when = o && p ? `${p.d} (${o.t} - ${p.t})` : `${r.payTime || r.openTime || ''}`;
   const staff = r.staff || r.staffName || (USER && USER.name) || '';
-  const hasPay = st.qr || st.bank || st.account || st.holder;
+  const bin = bankBin(st.bank), dyn = !!(bin && st.account);
+  const hasPay = dyn || st.qr || st.bank || st.account || st.holder;
   $('receipt').hidden = false;
   $('receipt').innerHTML = `<div class="c">
       <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
@@ -414,7 +416,7 @@ function showReceipt(r) {
     <div class="grand"><span>Tổng thanh toán</span><span>${money(grand)}</span></div>
     <div class="c"><div style="font-weight:700;margin-top:6px">Trân trọng cảm ơn</div>
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
-      ${st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : ''}
+      ${dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
       <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
     <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" hidden>✓ ĐÃ THANH TOÁN</div>
     <div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn sm" data-a="confirm">Xác nhận thanh toán</button><button class="btn ghost sm" data-a="close">Đóng</button></div>
@@ -423,8 +425,67 @@ function showReceipt(r) {
       <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button><button class="btn ghost sm" data-a="zalo">Zalo</button><button class="btn ghost sm" data-a="fb">Facebook</button><button class="btn ghost sm" data-a="copy">Sao chép</button></div>
     </div>`;
   lastReceipt = { r, text: receiptText(r, st, grand, when) };
+  if (dyn) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
+    .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
 let lastReceipt = null;
+
+/* ---------- VietQR động: tự điền số tài khoản + số tiền + nội dung ---------- */
+const BANKS = [
+  ['Vietcombank (VCB)','970436','vcb'],['VietinBank (CTG)','970415','ctg vietin'],['BIDV','970418',''],['Agribank','970405',''],
+  ['MB Bank (MBBank)','970422','mb quandoi'],['Techcombank (TCB)','970407','tcb'],['ACB','970416',''],['VPBank','970432','vpb'],
+  ['TPBank','970423','tpb'],['Sacombank (STB)','970403','stb'],['HDBank','970437','hdb'],['VIB','970441',''],['SHB','970443',''],
+  ['OCB','970448',''],['MSB','970426','maritime'],['SeABank','970440','seab'],['Eximbank (EIB)','970431','eib'],['LPBank (LPB)','970449','lienviet lpb'],
+  ['Nam A Bank','970428','namabank nab'],['Bac A Bank','970409','bab'],['VietBank','970433',''],['ABBank','970425','abb'],['NCB','970419',''],
+  ['PVcomBank','970412','pvcb'],['Kienlongbank','970452','klb'],['BaoViet Bank','970438','bvb'],['SCB','970429',''],['Viet Capital Bank','970454','vccb'],
+  ['Shinhan Bank','970424',''],['Woori Bank','970457',''],['Public Bank','970439','pbvn'],['Cake by VPBank','546034','cake'],['Ubank by VPBank','546035','ubank'],
+  ['Liobank','963369','lio']
+];
+const nrm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]/g, '');
+function bankBin(name) {
+  const v = String(name || '').trim(); if (!v) return '';
+  if (/^\d{6}$/.test(v)) return v;
+  const n = nrm(v); if (!n) return '';
+  for (const [label, bin, alias] of BANKS) {
+    const keys = [nrm(label), ...label.replace(/\)/g, '').split('(').map(nrm), ...alias.split(' ').map(nrm)].filter(Boolean);
+    if (keys.includes(n)) return bin;
+  }
+  for (const [label, bin, alias] of BANKS) {
+    const keys = [nrm(label.split('(')[0]), ...alias.split(' ').map(nrm)].filter(k => k.length >= 3);
+    if (keys.some(k => n.includes(k))) return bin;
+  }
+  return '';
+}
+$('bankList').innerHTML = BANKS.map(b => `<option value="${esc(b[0])}"></option>`).join('');
+function crc16(str) {
+  let c = 0xFFFF;
+  for (let i = 0; i < str.length; i++) { c ^= str.charCodeAt(i) << 8; for (let k = 0; k < 8; k++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF; }
+  return c.toString(16).toUpperCase().padStart(4, '0');
+}
+const tlv = (id, v) => id + String(v.length).padStart(2, '0') + v;
+function vietQrPayload(bin, account, amount, memo) {
+  const consumer = tlv('00', bin) + tlv('01', account);
+  let p = tlv('00', '01') + tlv('01', amount > 0 ? '12' : '11') +
+    tlv('38', tlv('00', 'A000000727') + tlv('01', consumer) + tlv('02', 'QRIBFTTA')) + tlv('53', '704');
+  if (amount > 0) p += tlv('54', String(Math.round(amount)));
+  p += tlv('58', 'VN');
+  if (memo) p += tlv('62', tlv('08', memo));
+  p += '6304';
+  return p + crc16(p);
+}
+const qrMemo = id => nrm(id).toUpperCase().slice(0, 25);
+function loadQRLib() {
+  return new Promise((ok, no) => {
+    if (window.qrcode) return ok(window.qrcode);
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    sc.onload = () => ok(window.qrcode); sc.onerror = () => no(new Error('qr'));
+    document.head.appendChild(sc);
+  });
+}
+async function makeQr(text) {
+  const q = (await loadQRLib())(0, 'M'); q.addData(text); q.make(); return q.createDataURL(8, 2);
+}
 function receiptText(r, st, grand, when) {
   const lines = (r.lines || []).map((l, i) => `${i + 1}. ${l.name} x${l.qty} = ${money(l.amount)}`).join('\n');
   return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}\nTỔNG THANH TOÁN: ${money(grand)}đ\n✓ Đã thanh toán. Cảm ơn quý khách!`;
@@ -602,7 +663,9 @@ $('btnSetSave').onclick = () => {
   if (!(tax >= 0 && tax <= 100)) return toast('Thuế phải từ 0 đến 100.', true);
   store.set(SET_KEY, JSON.stringify({ shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
     bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr }));
-  toast('Đã lưu thông tin hóa đơn.');
+  const b = $('sBank').value.trim();
+  if (b && !bankBin(b)) toast('Đã lưu, nhưng chưa nhận ra ngân hàng "' + b + '". Hãy chọn từ danh sách gợi ý để tạo QR tự động.', true);
+  else toast('Đã lưu thông tin hóa đơn.');
 };
 async function loadAdmin() {
   fillSettings();
