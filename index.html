@@ -647,9 +647,27 @@ $('sQrFile').addEventListener('change', e => {
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const k = Math.min(1, 480 / Math.max(img.width, img.height)), c = document.createElement('canvas');
-      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      /* tự cắt bỏ phần trắng thừa quanh mã QR */
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+      try {
+        const t = document.createElement('canvas'), tk = Math.min(1, 1200 / Math.max(img.width, img.height));
+        t.width = Math.round(img.width * tk); t.height = Math.round(img.height * tk);
+        const tg = t.getContext('2d', { willReadFrequently: true }); tg.fillStyle = '#fff'; tg.fillRect(0, 0, t.width, t.height); tg.drawImage(img, 0, 0, t.width, t.height);
+        const d = tg.getImageData(0, 0, t.width, t.height).data; let x0 = t.width, x1 = -1, y0 = t.height, y1 = -1;
+        for (let y = 0; y < t.height; y++) for (let x = 0; x < t.width; x++) {
+          const i = (y * t.width + x) * 4;
+          if (d[i + 3] > 0 && (d[i] + d[i + 1] + d[i + 2]) / 3 < 140) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        }
+        if (x1 > x0 && y1 > y0) {
+          const m = Math.round(0.04 * Math.max(x1 - x0, y1 - y0)), side = Math.max(x1 - x0, y1 - y0) + 2 * m;
+          const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+          const L = Math.max(0, Math.round(cx - side / 2)), T = Math.max(0, Math.round(cy - side / 2));
+          sx = L / tk; sy = T / tk; sw = Math.min(side, t.width - L) / tk; sh = Math.min(side, t.height - T) / tk;
+        }
+      } catch (e) {}
+      const k = Math.min(1, 480 / Math.max(sw, sh)), c = document.createElement('canvas');
+      c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
       pendingQr = c.toDataURL('image/png'); showQrPrev(); toast('Đã chọn ảnh QR. Bấm "Lưu thông tin hóa đơn" để áp dụng.');
     };
     img.onerror = () => toast('Không đọc được ảnh này.', true);
