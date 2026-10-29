@@ -397,7 +397,7 @@ function showReceipt(r) {
   const hasPay = st.qr || st.bank || st.account || st.holder;
   $('receipt').hidden = false;
   $('receipt').innerHTML = `<div class="c">
-      <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div class="shop" style="font-weight:600">${esc(st.address)}</div>` : ''}
+      <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
       <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(r.table)}</div>
