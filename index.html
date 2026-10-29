@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý bán hàng</title>
+<style>
+  :root { --bg:#f6f5f1; --card:#fff; --ink:#1f2a2e; --muted:#6b7479; --line:#dcdad2; --accent:#0f5c5c; --accent-ink:#fff; --warn:#b3261e; --ok:#1d6b3a; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:10px 16px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; gap:10px; }
+  header b { flex:1; font-size:17px; } header small { opacity:.85; }
+  header button { background:transparent; color:inherit; border:1px solid rgba(255,255,255,.5); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
+  nav { display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto; background:var(--bg); position:sticky; top:0; z-index:2; }
+  nav button { flex:0 0 auto; border:1px solid var(--line); border-bottom:none; background:#ebe9e2; padding:9px 14px; border-radius:8px 8px 0 0; font:inherit; color:var(--muted); cursor:pointer; }
+  nav button.on { background:var(--card); color:var(--ink); font-weight:600; }
+  main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
+  section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:0 8px 8px 8px; padding:14px; }
+  section.tab.on { display:block; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
+  select, input { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
+  .btn { background:var(--accent); color:var(--accent-ink); border:0; padding:11px 16px; border-radius:6px; font:inherit; font-weight:600; cursor:pointer; }
+  .btn:disabled { opacity:.5; cursor:wait; }
+  .ghost { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .sm { padding:5px 9px; font-weight:500; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; } .row > * { flex:1 1 170px; }
+  .split { display:grid; grid-template-columns:1.2fr 1fr; gap:14px; }
+  @media (max-width:720px) { .split { grid-template-columns:1fr; } }
+  .menu { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; }
+  .menu button { text-align:left; padding:10px; border:1px solid var(--line); background:#fff; border-radius:8px; font:inherit; cursor:pointer; }
+  .menu small { display:block; color:var(--muted); }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  th { font-size:13px; color:var(--muted); font-weight:600; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .qty { display:inline-flex; align-items:center; gap:6px; }
+  .qty button { width:28px; height:28px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
+  .tot { display:flex; justify-content:space-between; padding:4px 0; }
+  .tot.big { font-size:18px; font-weight:700; border-top:2px solid var(--ink); margin-top:6px; padding-top:8px; }
+  .low, .neg { color:var(--warn); font-weight:600; } .pos { color:var(--ok); }
+  .empty { color:var(--muted); padding:12px 0; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0 14px; }
+  .kpi { border:1px solid var(--line); border-radius:8px; padding:10px; } .kpi span { display:block; font-size:13px; color:var(--muted); } .kpi b { font-size:18px; }
+  #login { max-width:420px; margin:12vh auto 0; padding:24px 20px; background:var(--card); border:1px solid var(--line); border-radius:10px; text-align:center; }
+  #loginMsg.err { color:var(--warn); }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; }
+  #toast.show { opacity:1; } #toast.err { background:var(--warn); }
+  .inv { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:8px 10px; background:#eef4f3; border-radius:8px; margin-bottom:8px; }
+  .inv span { color:var(--muted); }
+  #receipt { margin-top:14px; padding:14px; border:2px dashed var(--ink); border-radius:8px; max-width:420px; }
+  @media print { body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; border:0; } .noprint { visibility:hidden !important; } }
+  @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
+</style>
+</head>
+<body>
+
+<!-- ĐĂNG NHẬP -->
+<div id="login" hidden>
+  <h2 style="font-size:20px">Quản lý bán hàng</h2>
+  <label style="text-align:left">Tên đăng nhập</label><input id="lUser" autocapitalize="none" autocomplete="username">
+  <label style="text-align:left">Mật khẩu</label><input id="lPass" type="password" autocomplete="current-password">
+  <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink);text-align:left"><input type="checkbox" id="lRemember" style="width:auto"> Ghi nhớ tên đăng nhập và mật khẩu</label>
+  <button class="btn" id="btnLogin" style="margin-top:14px;width:100%">Đăng nhập</button>
+  <p id="loginMsg" class="empty"></p>
+  <p class="empty" style="margin:0">Mã thiết bị: <b id="devCode"></b> <button type="button" class="btn ghost sm" id="btnCopy">Sao chép</button></p>
+</div>
+
+<!-- ỨNG DỤNG -->
+<div id="app" hidden>
+<header><b>Quản lý bán hàng</b><small id="who"></small><button id="btnLogout">Đăng xuất</button></header>
+<nav id="tabs"></nav>
+<main>
+
+<section class="tab" id="sale">
+  <div class="split">
+    <div>
+      <div class="row">
+        <div><label>Bàn</label><select id="saleTable"></select></div>
+        <div><label>Loại khách</label><select id="saleCust"></select></div>
+      </div>
+      <h2 style="margin-top:12px">Thực đơn</h2><div class="menu" id="menuGrid"></div>
+    </div>
+    <div>
+      <div class="inv"><b id="invNo">Hóa đơn mới</b><span id="invTime"></span></div>
+      <div id="cart"></div>
+      <div class="tot"><span>Tiền hàng</span><span id="tGross">0</span></div>
+      <div class="tot"><span id="tDiscLabel">Chiết khấu</span><span id="tDisc">0</span></div>
+      <div class="tot big"><span>Thành tiền</span><span id="tTotal">0</span></div>
+      <label>Ghi chú</label><input id="saleNote" placeholder="Không bắt buộc">
+      <div class="row" style="margin-top:12px"><button class="btn" id="btnPay">Thanh toán</button><button class="btn ghost" id="btnHold">Treo hóa đơn</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="btnClear">Bỏ thay đổi, làm hóa đơn mới</button></div>
+    </div>
+  </div>
+  <div id="receipt" hidden></div>
+  <div class="row" style="align-items:center;margin-top:18px"><h2 id="heldTitle">Hóa đơn đang treo</h2><button class="btn ghost sm" id="btnHeldRefresh" style="flex:0 0 auto">Làm mới</button></div>
+  <div id="heldList" class="wrap"></div>
+</section>
+
+<section class="tab" id="import">
+  <h2>Phiếu nhập hàng</h2>
+  <div class="row">
+    <div><label>Nhà cung cấp</label><input id="impSupplier"></div>
+    <div><label>Mặt hàng</label><select id="impItem"></select></div>
+    <div><label>Số lượng</label><input id="impQty" type="number" min="0" inputmode="decimal"></div>
+    <div><label>Giá nhập</label><input id="impCost" type="number" min="0" inputmode="decimal"></div>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="btn ghost" id="btnImpAdd">Thêm dòng</button></div>
+  <div id="impList" class="wrap"></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="btnImpSave">Lưu phiếu nhập</button></div>
+</section>
+
+<section class="tab" id="stock">
+  <div class="row" style="align-items:center"><h2 id="stockTitle">Tồn kho hiện tại</h2><button class="btn ghost" id="btnStockRefresh" style="flex:0 0 auto">Làm mới</button></div>
+  <div id="stockBody" class="wrap"></div>
+</section>
+
+<section class="tab" id="count">
+  <h2>Kiểm kê kho</h2>
+  <p class="empty" style="margin-top:0">Nhập số đếm thực tế. Món để trống sẽ được bỏ qua.</p>
+  <div id="countBody" class="wrap"></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="btnCountSave">Lưu kiểm kê</button></div>
+</section>
+
+<section class="tab" id="report">
+  <div class="row" style="align-items:end">
+    <div><label id="lFrom">Ngày</label><input id="repFrom" type="date"></div>
+    <div class="adm"><label>Đến ngày</label><input id="repTo" type="date"></div>
+    <div class="adm"><label>Nhân viên</label><select id="repStaff"></select></div>
+    <button class="btn" id="btnRep" style="flex:0 0 auto">Xem báo cáo</button>
+  </div>
+  <div class="row adm" id="quick" style="margin-top:8px">
+    <button class="btn ghost sm" data-q="today">Hôm nay</button><button class="btn ghost sm" data-q="week">Tuần này</button><button class="btn ghost sm" data-q="month">Tháng này</button>
+  </div>
+  <div id="repBody"></div>
+</section>
+
+<section class="tab" id="admin">
+  <h2>Nhân viên</h2>
+  <div id="userList" class="wrap"></div>
+  <div class="row" style="margin-top:8px">
+    <div><label>Tên đăng nhập</label><input id="uGit" autocapitalize="none" autocomplete="off"></div>
+    <div><label>Họ tên</label><input id="uName"></div>
+    <div><label>Mật khẩu (để trống = giữ nguyên)</label><input id="uPass" autocomplete="off"></div>
+    <div><label>Vai trò</label><select id="uRole"><option value="BANHANG">Bán hàng</option><option value="KHO">Kho</option><option value="ADMIN">Admin</option></select></div>
+    <div><label>Trạng thái</label><select id="uActive"><option value="1">Hoạt động</option><option value="0">Khóa</option></select></div>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="btn" id="btnUserSave">Lưu nhân viên</button></div>
+  <h2 style="margin-top:20px">Thiết bị đăng nhập</h2>
+  <div id="devList" class="wrap"></div>
+</section>
+
+</main>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = n => (Math.round(n) || 0).toLocaleString('vi-VN');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sign = n => `<span class="${n < 0 ? 'neg' : 'pos'}">${n < 0 ? '' : '+'}${money(n)}</span>`;
+
+/* Lưu cục bộ (có dự phòng bộ nhớ nếu trình duyệt chặn localStorage) */
+const store = { mem: {},
+  get(k) { try { return localStorage.getItem(k) || this.mem[k] || ''; } catch (e) { return this.mem[k] || ''; } },
+  set(k, v) { this.mem[k] = v; try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { delete this.mem[k]; try { localStorage.removeItem(k); } catch (e) {} } };
+function deviceId() {
+  let id = store.get('bh_device');
+  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : 'd' + Date.now() + Math.random().toString(16).slice(2)); store.set('bh_device', id); }
+  return id; // TODO APK/iOS: thay bằng ID thiết bị gốc (vd Capacitor Device.getId())
+}
+const deviceName = () => (navigator.userAgent.match(/\(([^)]+)\)/) || [, 'Trình duyệt'])[1].slice(0, 60);
+
+/* Gọi hàm trong Code.gs. withToken=false dùng cho các hàm đăng nhập. */
+// >>> DÁN LINK ỨNG DỤNG WEB CỦA GOOGLE SCRIPT (kết thúc bằng /exec) VÀO ĐÂY <<<
+const API_URL = 'DÁN_LINK_EXEC_VÀO_ĐÂY';
+let TOKEN = '', USER = null, DATA = {};
+async function call(fn, args, withToken = true) {
+  if (!/^https:\/\/script\.google\.com\//.test(API_URL)) throw new Error('Chưa cấu hình API_URL ở đầu phần <script> của index.html.');
+  let r;
+  try {
+    // text/plain để trình duyệt không gửi yêu cầu kiểm tra CORS trước (Google Script không hỗ trợ bước đó)
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, args: withToken ? [TOKEN, ...args] : args }) });
+    r = await res.json();
+  } catch (e) { throw new Error('Không kết nối được máy chủ. Kiểm tra mạng, API_URL và quyền "Anyone" của bản triển khai.'); }
+  if (!r.ok) {
+    const m = String(r.error || 'Lỗi không rõ.');
+    if (m.includes('PHIEN_HET_HAN')) { showLogin('Phiên đăng nhập đã hết hạn hoặc thiết bị không còn quyền.'); throw new Error('Hết phiên đăng nhập.'); }
+    throw new Error(m);
+  }
+  return r.data;
+}
+const api = (fn, ...a) => call(fn, a);
+
+function toast(msg, isErr) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = '', 3000);
+}
+async function run(btn, job) { btn.disabled = true; try { await job(); } catch (e) { toast(e.message, true); } finally { btn.disabled = false; } }
+
+/* ---------- Đăng nhập ---------- */
+function loginMsg(m, err) { $('loginMsg').textContent = m || ''; $('loginMsg').className = 'empty' + (err ? ' err' : ''); }
+/* Ghi nhớ đăng nhập (lưu trên chính thiết bị này) */
+function loadSaved() {
+  try { const c = JSON.parse(store.get('bh_cred') || 'null'); if (c) { $('lUser').value = c.u; $('lPass').value = c.p; $('lRemember').checked = true; return; } } catch (e) {}
+  $('lRemember').checked = false;
+}
+$('lRemember').addEventListener('change', () => { if (!$('lRemember').checked) store.del('bh_cred'); });
+
+/* Sao chép mã thiết bị (có phương án dự phòng khi trình duyệt chặn clipboard trong khung nhúng) */
+function copyText(t) {
+  const fallback = () => {
+    const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0';
+    document.body.appendChild(a); a.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    a.remove(); return ok;
+  };
+  return (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t).then(() => true, fallback) : Promise.resolve(fallback()));
+}
+$('btnCopy').onclick = async e => {
+  const ok = await copyText($('devCode').textContent), b = e.target;
+  b.textContent = ok ? 'Đã sao chép' : 'Không chép được'; toast(ok ? 'Đã sao chép mã thiết bị.' : 'Không sao chép được, hãy bôi đen mã và chép tay.', !ok);
+  setTimeout(() => b.textContent = 'Sao chép', 1800);
+};
+
+function showLogin(msg) {
+  TOKEN = ''; USER = null; store.del('bh_token');
+  $('app').hidden = true; $('login').hidden = false; $('lPass').value = ''; loadSaved();
+  $('devCode').textContent = deviceId().slice(0, 8).toUpperCase(); loginMsg(msg, !!msg);
+}
+$('btnLogin').onclick = e => run(e.target, async () => {
+  loginMsg('');
+  const p = await call('login', [$('lUser').value, $('lPass').value, deviceId(), deviceName()], false);
+  if (p.status !== 'ok') return loginMsg(p.message, true);
+  TOKEN = p.token; store.set('bh_token', TOKEN);
+  if ($('lRemember').checked) store.set('bh_cred', JSON.stringify({ u: $('lUser').value, p: $('lPass').value })); else store.del('bh_cred');
+  $('lPass').value = ''; await enter();
+});
+$('lPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin').click(); });
+$('btnLogout').onclick = () => { call('logout', []).catch(() => {}); showLogin(''); };
+
+/* ---------- Vào ứng dụng theo vai trò ---------- */
+const TABS = [
+  { id: 'sale', label: 'Bán hàng', roles: ['BANHANG'] },
+  { id: 'report', label: 'Báo cáo', roles: ['BANHANG'] },
+  { id: 'import', label: 'Nhập hàng', roles: ['KHO'] },
+  { id: 'stock', label: 'Tồn kho', roles: ['KHO'] },
+  { id: 'count', label: 'Kiểm kê', roles: ['KHO'] },
+  { id: 'admin', label: 'Quản trị', roles: [] },
+];
+const ROLE_NAME = { ADMIN: 'Admin', BANHANG: 'Bán hàng', KHO: 'Kho' };
+
+async function enter() {
+  DATA = await api('getInitData'); USER = DATA.user;
+  const admin = USER.role === 'ADMIN';
+  $('who').textContent = `${USER.name} · ${ROLE_NAME[USER.role]}`;
+  $('saleTable').innerHTML = DATA.tables.map(t => `<option>${esc(t)}</option>`).join('');
+  $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
+  $('impItem').innerHTML = DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+  $('menuGrid').innerHTML = DATA.menu.map(m => `<button data-id="${esc(m.id)}">${esc(m.name)}<small>${money(m.price)}đ</small></button>`).join('');
+  $('repStaff').innerHTML = '<option value="">Tất cả nhân viên</option>' + DATA.staff.map(s => `<option value="${esc(s.username)}">${esc(s.name)}</option>`).join('');
+  document.querySelectorAll('.adm').forEach(el => el.hidden = !admin);
+  $('lFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
+  const today = new Date().toLocaleDateString('sv-SE'); $('repFrom').value = today; $('repTo').value = today;
+  const mine = TABS.filter(t => admin || t.roles.includes(USER.role));
+  $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
+  $('login').hidden = true; $('app').hidden = false;
+  resetOrder(); impLines = []; renderImp(); openTab(mine[0].id);
+}
+function openTab(t) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === t));
+  ({ sale: loadHeld, stock: loadStock, count: loadCount, admin: loadAdmin, report: runReport }[t] || (() => {}))();
+}
+$('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.target.dataset.t); });
+
+/* ---------- Bán hàng: hóa đơn có số, treo / gọi lại / thanh toán ---------- */
+let cart = {}, cur = {};   // cur = { id, openTime } khi đang làm tiếp một hóa đơn đã treo
+const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
+function resetOrder() { cart = {}; cur = {}; $('saleNote').value = ''; renderCart(); }
+function renderCart() {
+  const ids = Object.keys(cart); let gross = 0;
+  $('invNo').textContent = cur.id ? 'Hóa đơn ' + cur.id : 'Hóa đơn mới (chưa có số)';
+  $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
+  $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
+    const m = DATA.menu.find(x => x.id === id), amt = m.price * cart[id]; gross += amt;
+    return `<tr><td>${esc(m.name)}<br><small>${money(m.price)}đ</small></td>
+      <td><span class="qty"><button data-d="-1" data-id="${esc(id)}">−</button>${cart[id]}<button data-d="1" data-id="${esc(id)}">+</button></span></td>
+      <td class="n">${money(amt)}</td></tr>`;
+  }).join('')}</table>` : '<div class="empty">Chạm vào món để thêm.</div>';
+  const p = discPct(), d = Math.round(gross * p / 100);
+  $('tGross').textContent = money(gross); $('tDiscLabel').textContent = `Chiết khấu (${p}%)`;
+  $('tDisc').textContent = '-' + money(d); $('tTotal').textContent = money(gross - d);
+}
+$('menuGrid').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cart[b.dataset.id] = (cart[b.dataset.id] || 0) + 1; renderCart(); });
+$('cart').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  cart[b.dataset.id] += Number(b.dataset.d); if (cart[b.dataset.id] <= 0) delete cart[b.dataset.id]; renderCart();
+});
+$('saleCust').addEventListener('change', renderCart);
+$('btnClear').onclick = resetOrder;
+
+function orderPayload() {
+  const items = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
+  if (!items.length) throw new Error('Hóa đơn chưa có món nào.');
+  return { id: cur.id, table: $('saleTable').value, custType: $('saleCust').value, note: $('saleNote').value, items };
+}
+$('btnHold').onclick = e => run(e.target, async () => {
+  const r = await api('saveOrder', orderPayload(), 'HOLD');
+  toast(`Đã treo ${r.id} · ${r.table}. Bạn có thể làm hóa đơn tiếp theo.`); resetOrder(); loadHeld();
+});
+$('btnPay').onclick = e => run(e.target, async () => {
+  const r = await api('saveOrder', orderPayload(), 'PAY');
+  showReceipt(r); resetOrder(); loadHeld();
+});
+
+function showReceipt(r) {
+  $('receipt').hidden = false;
+  $('receipt').innerHTML = `<h2>Hóa đơn ${esc(r.id)}</h2>
+    <div>${esc(r.table)} · ${esc(r.custType)}</div><div>Mở lúc: ${esc(r.openTime)}</div><div>Thanh toán: ${esc(r.payTime)}</div>
+    <table style="margin-top:8px">${r.lines.map(l => `<tr><td>${esc(l.name)}<br><small>${money(l.price)} × ${l.qty}</small></td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
+    <div class="tot"><span>Tiền hàng</span><span>${money(r.gross)}</span></div>
+    <div class="tot"><span>Chiết khấu (${r.discPct}%)</span><span>-${money(r.discount)}</span></div>
+    <div class="tot big"><span>Thành tiền</span><span>${money(r.total)}</span></div>
+    <div class="row noprint" style="margin-top:10px"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn ghost sm" data-a="close">Đóng</button></div>`;
+}
+$('receipt').addEventListener('click', e => {
+  if (e.target.dataset.a === 'print') window.print();
+  if (e.target.dataset.a === 'close') $('receipt').hidden = true;
+});
+
+async function loadHeld(silent) {
+  try {
+    const h = await api('listHeld'); $('heldTitle').textContent = `Hóa đơn đang treo (${h.length})`;
+    $('heldList').innerHTML = h.length ? `<table><tr><th>Số HĐ</th><th>Bàn</th><th>Mở lúc</th><th>NV</th><th class="n">Món</th><th class="n">Tiền</th><th></th></tr>${h.map(x =>
+      `<tr><td>${esc(x.id)}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td>
+       <td><button class="btn sm" data-a="recall" data-id="${esc(x.id)}">Gọi lại</button> <button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
+      : '<div class="empty">Không có hóa đơn nào đang treo.</div>';
+  } catch (e) { if (!silent) toast(e.message, true); }
+}
+$('btnHeldRefresh').onclick = e => run(e.target, () => loadHeld());
+setInterval(() => { if (!$('app').hidden && $('sale').classList.contains('on')) loadHeld(true); }, 30000);
+$('heldList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; const id = b.dataset.id;
+  if (b.dataset.a === 'recall') return run(b, async () => {
+    if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
+    const o = await api('getOrder', id);
+    cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openTime };
+    $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; renderCart();
+    toast('Đã gọi lại ' + o.id);
+  });
+  if (b.dataset.a === 'void') {
+    if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Bấm lại để hủy'; return; }
+    run(b, async () => { await api('cancelHeld', id); toast('Đã hủy ' + id); loadHeld(); });
+  }
+});
+
+/* ---------- Nhập hàng ---------- */
+let impLines = [];
+function renderImp() {
+  $('impList').innerHTML = impLines.length ? `<table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th class="n">Thành tiền</th></tr>
+    ${impLines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${l.qty}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.qty * l.unitCost)}</td></tr>`).join('')}
+    <tr><th colspan="3" class="n">Tổng</th><th class="n">${money(impLines.reduce((t, l) => t + l.qty * l.unitCost, 0))}</th></tr></table>` : '<div class="empty">Chưa có dòng nào.</div>';
+}
+$('btnImpAdd').onclick = () => {
+  const id = $('impItem').value, qty = Number($('impQty').value), unitCost = Number($('impCost').value);
+  if (!id || qty <= 0 || $('impCost').value === '' || unitCost < 0) return toast('Nhập đủ số lượng và giá nhập.', true);
+  impLines.push({ id, name: DATA.menu.find(m => m.id === id).name, qty, unitCost }); $('impQty').value = ''; $('impCost').value = ''; renderImp();
+};
+$('btnImpSave').onclick = e => run(e.target, async () => {
+  const r = await api('saveImport', { supplier: $('impSupplier').value, items: impLines.map(({ id, qty, unitCost }) => ({ id, qty, unitCost })) });
+  toast(`Đã lưu ${r.id} · ${money(r.total)}đ`); impLines = []; renderImp();
+});
+
+/* ---------- Tồn kho / Kiểm kê ---------- */
+async function loadStock() {
+  try {
+    const r = await api('getInventoryReport'); $('stockTitle').textContent = 'Tồn kho lúc ' + r.asOf;
+    $('stockBody').innerHTML = `<table><tr><th>Mặt hàng</th><th class="n">Tồn</th><th class="n">Tối thiểu</th><th class="n">Giá trị</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n ${x.low ? 'low' : ''}">${x.qty} ${esc(x.unit)}</td><td class="n">${x.minStock}</td><td class="n">${money(x.value)}</td></tr>`).join('')}
+      <tr><th colspan="3" class="n">Tổng giá trị tồn</th><th class="n">${money(r.totalValue)}</th></tr></table>`;
+  } catch (e) { toast(e.message, true); }
+}
+$('btnStockRefresh').onclick = e => run(e.target, loadStock);
+async function loadCount() {
+  try {
+    const r = await api('getInventoryReport');
+    $('countBody').innerHTML = `<table><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th>Thực tế</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${x.qty} ${esc(x.unit)}</td><td><input type="number" inputmode="decimal" data-id="${esc(x.id)}" style="width:100px"></td></tr>`).join('')}</table>`;
+  } catch (e) { toast(e.message, true); }
+}
+$('btnCountSave').onclick = e => run(e.target, async () => {
+  const rows = [...document.querySelectorAll('#countBody input')].map(i => ({ id: i.dataset.id, actual: i.value }));
+  const r = await api('saveStocktake', rows);
+  toast(`Đã kiểm kê ${r.count} món · chênh lệch ${money(r.diffValue)}đ`); loadCount();
+});
+
+/* ---------- Báo cáo (ngày / tuần / tháng / theo nhân viên) ---------- */
+$('quick').addEventListener('click', e => {
+  const k = e.target.dataset.q; if (!k) return;
+  const n = new Date(), d = new Date(n);
+  if (k === 'week') d.setDate(n.getDate() - ((n.getDay() + 6) % 7));   // thứ Hai đầu tuần
+  if (k === 'month') d.setDate(1);
+  $('repFrom').value = d.toLocaleDateString('sv-SE'); $('repTo').value = n.toLocaleDateString('sv-SE'); runReport();
+});
+const kpi = (l, v) => `<div class="kpi"><span>${l}</span><b>${v}</b></div>`;
+const statRow = (label, o) => `<tr><td>${label}</td><td class="n">${o.invoices}</td><td class="n">${money(o.revenue)}</td><td class="n">${money(o.cogs)}</td>
+  <td class="n">${sign(o.gross)}</td><td class="n">${sign(o.diff)}</td><td class="n">${sign(o.net)}</td><td class="n">${o.margin}%</td></tr>`;
+const statHead = first => `<tr><th>${first}</th><th class="n">HĐ</th><th class="n">Doanh thu</th><th class="n">Giá vốn</th><th class="n">Lãi gộp</th><th class="n">Kiểm kê</th><th class="n">Lãi/lỗ</th><th class="n">Biên</th></tr>`;
+
+async function runReport() {
+  try {
+    const admin = USER.role === 'ADMIN';
+    const r = await api('getReport', $('repFrom').value, $('repTo').value, $('repStaff').value), t = r.total, nm = g => esc(r.names[g] || g);
+    $('repBody').innerHTML = `
+      <div class="kpis">${kpi('Số hóa đơn', t.invoices)}${kpi('Doanh thu', money(t.revenue))}${kpi('Chiết khấu đã cho', money(t.discount))}
+        ${kpi('Giá vốn hàng bán', money(t.cogs))}${kpi('Lãi gộp', sign(t.gross))}
+        ${admin ? kpi('Chênh lệch kiểm kê', sign(t.diff)) + kpi('Lãi/lỗ sau kiểm kê', sign(t.net)) + kpi('Biên lãi', t.margin + '%') + kpi('Tiền nhập hàng', money(t.importCost)) : ''}</div>
+      ${admin ? `<h2>Theo nhân viên</h2><div class="wrap">${r.byStaff.length ? `<table>${statHead('Nhân viên')}${r.byStaff.map(s => statRow(nm(s.key), s)).join('')}</table>` : '<div class="empty">Không có dữ liệu.</div>'}</div>` : ''}
+      ${admin && r.byDay.length > 1 ? `<h2 style="margin-top:14px">Theo ngày</h2><div class="wrap"><table>${statHead('Ngày')}${r.byDay.map(d => statRow(esc(d.key.split('-').reverse().join('/')), d)).join('')}</table></div>` : ''}
+      <h2 style="margin-top:14px">Món bán chạy</h2><div class="wrap">${r.topItems.length ? `<table><tr><th>Món</th><th class="n">SL</th><th class="n">Doanh thu</th></tr>${r.topItems.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có bán hàng.</div>'}</div>
+      <h2 style="margin-top:14px">Hóa đơn</h2><div class="wrap">${r.invoices.length ? `<table><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th>${admin ? '<th>Nhân viên</th>' : ''}<th class="n">Tiền</th></tr>${r.invoices.map(i => `<tr><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td>${admin ? `<td>${nm(i.staff)}</td>` : ''}<td class="n">${money(i.total)}</td></tr>`).join('')}</table>` : '<div class="empty">Không có hóa đơn.</div>'}</div>`;
+  } catch (e) { toast(e.message, true); }
+}
+$('btnRep').onclick = e => run(e.target, runReport);
+
+/* ---------- Quản trị: nhân viên + thiết bị ---------- */
+const ST = { APPROVED: 'Đã duyệt', PENDING: 'Chờ duyệt', REVOKED: 'Đã thu hồi' };
+async function loadAdmin() {
+  try {
+    const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
+    $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
+      `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${ROLE_NAME[u.role] || esc(u.role)}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
+       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.role)}" data-a="${u.active ? 1 : 0}">Sửa</button></td></tr>`).join('')}</table>`;
+    $('devList').innerHTML = devs.length ? `<table><tr><th>Tên đăng nhập</th><th>Mã thiết bị</th><th>Thiết bị</th><th>Yêu cầu lúc</th><th>Trạng thái</th><th></th></tr>${devs.map(d =>
+      `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}</td><td>
+        ${d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
+        ${d.status !== 'REVOKED' ? `<button class="btn ghost sm" data-s="REVOKED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Thu hồi</button>` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có thiết bị nào đăng nhập.</div>';
+  } catch (e) { toast(e.message, true); }
+}
+$('userList').addEventListener('click', e => {
+  const d = e.target.dataset; if (!d.edit) return;
+  $('uGit').value = d.edit; $('uName').value = d.n; $('uRole').value = d.r; $('uActive').value = d.a;
+});
+$('devList').addEventListener('click', e => {
+  const d = e.target.dataset; if (!d.s) return;
+  run(e.target, async () => { await api('adminSetDevice', { username: d.g, deviceId: d.d, status: d.s }); toast('Đã cập nhật thiết bị.'); loadAdmin(); });
+});
+$('btnUserSave').onclick = e => run(e.target, async () => {
+  await api('adminSaveUser', { username: $('uGit').value, name: $('uName').value, password: $('uPass').value, role: $('uRole').value, active: $('uActive').value === '1' });
+  toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; loadAdmin();
+});
+
+/* ---------- Khởi động: thử khôi phục phiên cũ ---------- */
+(async function boot() {
+  TOKEN = store.get('bh_token');
+  if (TOKEN) { try { await enter(); return; } catch (e) {} }
+  showLogin('');
+})();
+</script>
+</body>
+</html>
