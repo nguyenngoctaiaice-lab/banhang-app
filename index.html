@@ -392,11 +392,63 @@ function showReceipt(r) {
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
       ${st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : ''}
       <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
-    <div class="row noprint" style="margin-top:12px"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn ghost sm" data-a="close">Đóng</button></div>`;
+    <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" hidden>✓ ĐÃ THANH TOÁN</div>
+    <div class="row noprint" style="margin-top:12px;flex-wrap:wrap"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn sm" data-a="confirm">Xác nhận thanh toán</button><button class="btn ghost sm" data-a="close">Đóng</button></div>
+    <div id="sharePanel" class="noprint" hidden style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
+      <div style="font-weight:700;margin-bottom:6px">Chia sẻ hóa đơn cho khách</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button><button class="btn ghost sm" data-a="zalo">Zalo</button><button class="btn ghost sm" data-a="fb">Facebook</button><button class="btn ghost sm" data-a="copy">Sao chép</button></div>
+    </div>`;
+  lastReceipt = { r, text: receiptText(r, st, grand, when) };
+}
+let lastReceipt = null;
+function receiptText(r, st, grand, when) {
+  const lines = (r.lines || []).map((l, i) => `${i + 1}. ${l.name} x${l.qty} = ${money(l.amount)}`).join('\n');
+  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}\nTỔNG THANH TOÁN: ${money(grand)}đ\n✓ Đã thanh toán. Cảm ơn quý khách!`;
+}
+function loadH2C() {
+  return new Promise((ok, no) => {
+    if (window.html2canvas) return ok(window.html2canvas);
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    sc.onload = () => ok(window.html2canvas); sc.onerror = () => no(new Error('x'));
+    document.head.appendChild(sc);
+  });
+}
+async function receiptFile() {
+  const h2c = await loadH2C(), el = $('receipt');
+  const hide = el.querySelectorAll('.noprint'); hide.forEach(n => n.style.display = 'none');
+  try {
+    const cv = await h2c(el, { backgroundColor: '#fff', scale: 2 });
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    return new File([blob], 'hoa-don-' + lastReceipt.r.id + '.png', { type: 'image/png' });
+  } finally { hide.forEach(n => n.style.display = ''); }
+}
+async function copyText(t) { try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; } }
+async function shareReceipt(target) {
+  const text = lastReceipt.text; let file = null;
+  try { file = await receiptFile(); } catch (e) {}
+  if (navigator.share) {
+    try {
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], text });
+      else await navigator.share({ text });
+      return;
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const ok = await copyText(text);
+  toast(ok ? 'Đã sao chép nội dung hóa đơn, hãy dán vào ' + (target === 'fb' ? 'Messenger.' : 'Zalo.') : 'Máy này không hỗ trợ chia sẻ trực tiếp.', !ok);
+  if (target === 'fb') window.open('https://www.messenger.com/', '_blank');
+  else if (target === 'zalo') window.open('https://chat.zalo.me/', '_blank');
 }
 $('receipt').addEventListener('click', e => {
-  if (e.target.dataset.a === 'print') window.print();
-  if (e.target.dataset.a === 'close') $('receipt').hidden = true;
+  const a = e.target.dataset.a;
+  if (a === 'print') window.print();
+  if (a === 'close') $('receipt').hidden = true;
+  if (a === 'confirm') {
+    $('paidMark').hidden = false; $('sharePanel').hidden = false; e.target.hidden = true;
+    toast('Đã xác nhận thanh toán. Bạn có thể chia sẻ hóa đơn cho khách.');
+  }
+  if (a === 'share' || a === 'zalo' || a === 'fb') run(e.target, () => shareReceipt(a));
+  if (a === 'copy') copyText(lastReceipt.text).then(ok => toast(ok ? 'Đã sao chép nội dung hóa đơn.' : 'Không sao chép được.', !ok));
 });
 
 async function loadHeld(silent) {
