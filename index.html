@@ -13,6 +13,7 @@
   header { padding:10px 16px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; gap:10px; }
   .ver { font-size:12px; font-weight:400; opacity:.8; white-space:nowrap; }
   h2 .ver { display:block; margin-top:2px; }
+  html.native header b { display:none; } html.native header small { margin-left:auto; }   /* app Android: ẩn dòng tên phần mềm + phiên bản trên thanh trên cùng */
   header b .ver { font-size:inherit; font-weight:inherit; opacity:1; white-space:normal; }
   header b { flex:1; font-size:17px; } header small { opacity:.85; }
   header button { background:transparent; color:inherit; border:1px solid rgba(255,255,255,.5); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
@@ -56,9 +57,10 @@
   .kpi { border:1px solid var(--line); border-radius:8px; padding:10px; } .kpi span { display:block; font-size:13px; color:var(--muted); } .kpi b { font-size:18px; }
   #login { max-width:420px; margin:12vh auto 0; padding:24px 20px; background:var(--card); border:1px solid var(--line); border-radius:10px; text-align:center; }
   #loginMsg.err { color:var(--warn); }
-  /* Màn hình đăng nhập: nền theo chủ đề; chữ màu đỏ (hoặc màu admin chọn ở Giao diện). Nút nền màu giữ chữ trắng */
-  #login { background:var(--soft); border-color:var(--accent); --ink:var(--loginInk,#c62828); --muted:var(--loginInk,#c62828); color:var(--loginInk,#c62828); }
-  #login select, #login input { color:var(--loginInk,#c62828); }
+  /* Màn hình đăng nhập: nền theo chủ đề; chữ màu xanh lá (hoặc màu admin chọn ở Giao diện), nền trắng. Nút nền màu giữ chữ trắng */
+  #login { background:#fff; border-color:var(--accent); --ink:var(--loginInk,#15803d); --muted:var(--loginInk,#15803d); color:var(--loginInk,#15803d); }
+  #login select, #login input { color:var(--loginInk,#15803d); }
+  #loginTitle { font-size:21px; font-weight:800; line-height:1.3; color:var(--loginInk,#15803d); }   /* tiêu đề: đậm, mặc định xanh lá; admin chọn màu riêng thì theo màu đó */
   #login .ver { display:block; font-size:13px; opacity:1; white-space:normal; margin-top:12px; }
   #login #devRow { padding:2px 0 0; }
   #loginMsg:empty { display:none; }
@@ -122,7 +124,7 @@
 
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
-  <h2 style="font-size:20px">QUẢN LÝ BÁN HÀNG</h2>
+  <h2 id="loginTitle">PHẦN MỀM QUẢN LÝ BÁN HÀNG</h2>
   <label style="text-align:left">Tên đăng nhập</label><input id="lUser" autocapitalize="none" autocomplete="username">
   <label style="text-align:left">Mật khẩu</label><div style="position:relative"><input id="lPass" type="password" autocomplete="current-password" style="padding-right:44px"><button type="button" id="btnEye" aria-label="Hiện mật khẩu" title="Hiện/ẩn mật khẩu" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;padding:6px;line-height:0;color:var(--muted)"><svg id="eyeOn" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg><svg id="eyeOff" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12A3 3 0 1 1 9.88 9.88"/><path d="M1 1l22 22"/></svg></button></div>
   <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink);text-align:left"><input type="checkbox" id="lRemember" style="width:auto"> Ghi nhớ tên đăng nhập và mật khẩu</label>
@@ -282,10 +284,15 @@
     <div class="promoBar static" style="margin-top:10px"><span>🎉 GIẢM 10% · Tên chương trình khuyến mại 🎉</span></div>
     <div class="row" style="margin-top:10px;align-items:end">
       <div><label>Màu chữ tab Bán hàng và màn hình đăng nhập (không đổi thanh nền và chữ chạy khuyến mại)</label>
-        <select id="thInkOn"><option value="0">Mặc định (Bán hàng theo chủ đề, đăng nhập màu đỏ)</option><option value="1">Chọn màu riêng</option></select></div>
+        <select id="thInkOn"><option value="0">Mặc định (Bán hàng theo chủ đề, đăng nhập xanh lá)</option><option value="1">Chọn màu riêng</option></select></div>
       <div><label>Chọn màu</label><input type="color" id="thInk" value="#1f2a2e" style="height:40px;padding:2px"></div>
     </div>
     <div id="inkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff">Chữ mẫu: Ốc vặn — 30.000 · Tiền hàng · Thành tiền</div>
+    <div class="row" style="margin-top:10px;align-items:end">
+      <div><label>Màu nền thanh chữ chạy khuyến mại</label><input type="color" id="thBarBg" value="#1f8f3f" style="height:40px;padding:2px"></div>
+      <div><label>Màu chữ chạy khuyến mại</label><input type="color" id="thBarInk" value="#ffffff" style="height:40px;padding:2px"></div>
+      <div><button class="btn ghost" id="btnBarDef" type="button">Về mặc định (nền xanh lá, chữ trắng)</button></div>
+    </div>
     <div class="row" style="margin-top:10px"><button class="btn" id="btnThSave">Áp dụng cho mọi thiết bị</button></div>
   </details>
 
@@ -379,6 +386,8 @@ const BUILD_FALLBACK = 'V.20261029 - 22.47';
 const fmtVer = d => { const p = n => String(n).padStart(2, '0'); return `V.${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())} - ${p(d.getHours())}.${p(d.getMinutes())}`; };
 const setVer = t => document.querySelectorAll('.ver').forEach(e => e.textContent = (e.dataset.pre || ' - ') + (e.dataset.nov ? t.replace(/^V\./, '') : t));
 setVer(BUILD_FALLBACK);
+const markNative = () => { try { const C = window.Capacitor; if (C && C.isNativePlatform && C.isNativePlatform()) document.documentElement.classList.add('native'); } catch (e) {} };
+markNative();
 try {
   fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' }).then(r => {
     const lm = r.headers.get('Last-Modified'), d = lm ? new Date(lm) : null;
@@ -622,7 +631,8 @@ $('btnPay').onclick = async () => {
 const SET_KEY = 'bh_settings';
 let SETTINGS = null;
 const normSettings = o => { o = o || {}; return { shopName: o.shopName || '', address: o.address || '', taxPct: o.taxPct === undefined ? 10 : (Number(o.taxPct) || 0),
-  bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '', theme: o.theme || 'default', fx: o.fx !== false, saleInk: /^#[0-9a-f]{6}$/i.test(o.saleInk || '') ? o.saleInk : '' }; };
+  bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '', theme: o.theme || 'default', fx: o.fx !== false, saleInk: /^#[0-9a-f]{6}$/i.test(o.saleInk || '') ? o.saleInk : '',
+  barBg: /^#[0-9a-f]{6}$/i.test(o.barBg || '') ? o.barBg : '', barInk: /^#[0-9a-f]{6}$/i.test(o.barInk || '') ? o.barInk : '' }; };
 function getSettings() {
   if (!SETTINGS) { let o = {}; try { o = JSON.parse(store.get(SET_KEY) || '{}') || {}; } catch (e) {} SETTINGS = normSettings(o); }
   return SETTINGS;
@@ -1295,7 +1305,7 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   const tax = Number($('sTax').value);
   if (!(tax >= 0 && tax <= 100)) throw new Error('Thuế phải từ 0 đến 100.');
   const obj = { shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
-    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr, theme: getSettings().theme, fx: getSettings().fx, saleInk: getSettings().saleInk };
+    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr, theme: getSettings().theme, fx: getSettings().fx, saleInk: getSettings().saleInk, barBg: getSettings().barBg, barInk: getSettings().barInk };
   SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj));
   let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
   const b = obj.bank;
@@ -1491,6 +1501,12 @@ function startFx(list) {
   };
   fxTimer = setTimeout(burst, 3000);
 }
+const BAR_DEF = { bg: '#1f8f3f', ink: '#ffffff' };   // thanh chữ chạy khuyến mại: mặc định nền xanh lá, chữ trắng (admin đổi được)
+function applyBar(bg, ink) {
+  const b = /^#[0-9a-f]{6}$/i.test(bg || '') ? bg : BAR_DEF.bg, k = /^#[0-9a-f]{6}$/i.test(ink || '') ? ink : BAR_DEF.ink, r = document.documentElement.style;
+  r.setProperty('--bar1', b); r.setProperty('--bar2', b); r.setProperty('--barInk', k);
+  document.querySelectorAll('.promoBar.static').forEach(e => e.style.background = b);
+}
 function applySaleInk(v) {
   const lg = $('login'); if (lg) { if (/^#[0-9a-f]{6}$/i.test(v || '')) lg.style.setProperty('--loginInk', v); else lg.style.removeProperty('--loginInk'); }
   const el = $('sale'); if (!el) return;
@@ -1500,8 +1516,7 @@ function applySaleInk(v) {
 function applyTheme(id, fxOn) {
   const t = THEMES.find(x => x.id === id) || THEMES[0], on = fxOn === undefined ? getSettings().fx : fxOn, r = document.documentElement.style;
   Object.keys(t.v).forEach(k => r.setProperty('--' + k, t.v[k]));
-  r.setProperty('--bar1', t.bar[0]); r.setProperty('--bar2', t.bar[1]); r.setProperty('--barInk', t.barInk);
-  document.querySelectorAll('.promoBar.static').forEach(b => b.style.background = `linear-gradient(90deg,${t.bar[0]},${t.bar[1]})`);
+  applyBar(getSettings().barBg, getSettings().barInk);
   applySaleInk(getSettings().saleInk);
   const key = t.id + '|' + on;
   if (key !== curTheme) { curTheme = key; startFx(on ? t.fx : []); }
@@ -1511,14 +1526,18 @@ function fillTheme() {
   $('thTheme').innerHTML = THEMES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
   $('thTheme').value = THEMES.some(t => t.id === st.theme) ? st.theme : 'default'; $('thFx').value = st.fx ? '1' : '0';
   $('thInkOn').value = st.saleInk ? '1' : '0'; if (st.saleInk) $('thInk').value = st.saleInk; showInkPrev();
+  $('thBarBg').value = st.barBg || BAR_DEF.bg; $('thBarInk').value = st.barInk || BAR_DEF.ink;
 }
 const previewTheme = () => applyTheme($('thTheme').value, $('thFx').value === '1');
 $('thTheme').onchange = previewTheme; $('thFx').onchange = previewTheme;
 const inkChosen = () => $('thInkOn').value === '1' ? $('thInk').value : '';
 function showInkPrev() { const c = inkChosen(); $('inkPrev').style.color = c || ''; $('thInk').disabled = !c; }
 $('thInkOn').onchange = showInkPrev; $('thInk').oninput = showInkPrev;
+const previewBar = () => applyBar($('thBarBg').value, $('thBarInk').value);
+$('thBarBg').oninput = previewBar; $('thBarInk').oninput = previewBar;
+$('btnBarDef').onclick = () => { $('thBarBg').value = BAR_DEF.bg; $('thBarInk').value = BAR_DEF.ink; previewBar(); };
 $('btnThSave').onclick = e => run(e.target, async () => {
-  const obj = { ...getSettings(), theme: $('thTheme').value, fx: $('thFx').value === '1', saleInk: inkChosen() };
+  const obj = { ...getSettings(), theme: $('thTheme').value, fx: $('thFx').value === '1', saleInk: inkChosen(), barBg: $('thBarBg').value, barInk: $('thBarInk').value };
   SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj)); applyTheme(SETTINGS.theme, SETTINGS.fx);
   let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
   toast(synced ? 'Đã đổi giao diện cho mọi thiết bị.' : 'Đã đổi trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
@@ -1526,6 +1545,7 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- Khởi động: thử khôi phục phiên cũ ---------- */
 (async function boot() {
+  markNative();
   applyTheme(getSettings().theme, getSettings().fx);
   TOKEN = store.get('bh_token');
   if (TOKEN) { try { await enter(); return; } catch (e) {} }
