@@ -15,7 +15,7 @@
   header b { flex:1; font-size:17px; } header small { opacity:.85; }
   header button { background:transparent; color:inherit; border:1px solid rgba(255,255,255,.5); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
   nav { display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto; scrollbar-width:none; background:var(--bg); position:sticky; top:0; z-index:2; }
-  nav button { flex:0 0 auto; border:1px solid var(--line); border-bottom:none; background:#ebe9e2; padding:9px 14px; border-radius:8px 8px 0 0; font:inherit; color:var(--muted); cursor:pointer; }
+  nav button { flex:0 0 auto; border:1px solid var(--line); border-bottom:none; background:var(--tab); padding:9px 14px; border-radius:8px 8px 0 0; font:inherit; color:var(--muted); cursor:pointer; }
   nav button:first-child { margin-left:auto; } nav button:last-child { margin-right:auto; }
   nav button.on { background:var(--card); color:var(--ink); font-weight:600; }
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
@@ -36,7 +36,7 @@
   .menu small { display:block; color:var(--muted); }
   #menuPick { font-size:16px; padding:11px 9px; }
   .wrap { overflow-x:auto; }
-  tr.hrow { cursor:pointer; } tr.hrow:hover td, tr.hrow:active td { background:#f1efe8; }
+  tr.hrow { cursor:pointer; } tr.hrow:hover td, tr.hrow:active td { background:var(--soft); }
   table { width:100%; border-collapse:collapse; }
   th, td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
   th { font-size:13px; color:var(--muted); font-weight:600; }
@@ -64,7 +64,7 @@
   #receipt th.n, #receipt td.n { text-align:right; }
   #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; }
   #toast.show { opacity:1; } #toast.err { background:var(--warn); }
-  .inv { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:8px 10px; background:#eef4f3; border-radius:8px; margin-bottom:8px; }
+  .inv { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:8px 10px; background:var(--soft); border-radius:8px; margin-bottom:8px; }
   .inv span { color:var(--muted); }
   #receipt { margin-top:14px; padding:16px 14px; border:1px solid var(--ink); border-radius:8px; max-width:380px; background:#fff; color:#111; font-size:15px; line-height:1.5; }
   #receipt .c { text-align:center; } #receipt .shop { font-weight:700; font-size:16px; } #receipt .ttl { font-weight:700; font-size:20px; margin-top:8px; }
@@ -81,10 +81,16 @@
   #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
   @media print { #findBox { display:none !important; } }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } #receipt .noprint, #receipt .noprint * { display:none !important; } }
-  .promoBar { position:relative; overflow:hidden; height:40px; margin-bottom:10px; border-radius:8px; background:linear-gradient(90deg,#b3261e,#e8590c); color:#fff; }
-  .promoBar span { position:absolute; top:0; left:0; line-height:40px; font-size:20px; font-weight:700; white-space:nowrap; transform:translateX(-100%); animation:promoRun 16s linear infinite alternate; }
-  @keyframes promoRun { from { left:0; transform:translateX(-100%); } to { left:100%; transform:translateX(0); } }
-  @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; transform:none; } }
+  .promoBar { position:relative; overflow:hidden; height:42px; margin-bottom:10px; border-radius:8px; background:linear-gradient(90deg,var(--bar1),var(--bar2)); color:var(--barInk); box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+  .promoBar span { position:absolute; top:0; left:100%; line-height:42px; font-size:21px; font-weight:800; white-space:nowrap; text-shadow:0 1px 2px rgba(0,0,0,.35); animation:promoRun 18s linear infinite; }
+  @keyframes promoRun { from { left:100%; transform:translateX(0); } to { left:0; transform:translateX(-100%); } }
+  .promoBar.static span { position:static; display:block; text-align:center; animation:none; font-size:17px; }
+  @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; } }
+  #fx { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:15; }
+  #fx span { position:absolute; top:-30px; opacity:.85; animation:fxFall linear forwards, fxSway ease-in-out infinite alternate; }
+  @keyframes fxFall { to { top:105vh; } }
+  @keyframes fxSway { from { transform:translateX(-14px) rotate(-12deg); } to { transform:translateX(14px) rotate(12deg); } }
+  @media print { #fx { display:none !important; } }
   details.fold { margin-top:16px; border-top:1px solid var(--line); padding-top:8px; }
   details.fold:first-of-type { margin-top:0; border-top:0; padding-top:0; }
   details.fold > summary { font-size:16px; font-weight:700; text-align:center; cursor:pointer; padding:8px 0; user-select:none; }
@@ -202,6 +208,17 @@
   </details>
 
   <details class="fold">
+    <summary>Giao diện (chủ đề ngày lễ)</summary>
+    <p class="empty" style="margin:0 0 4px">Chọn chủ đề để xem thử ngay, rồi bấm "Áp dụng" để đổi giao diện cho mọi thiết bị (đăng nhập, bán hàng, nhập hàng, tồn kho, kiểm kê, báo cáo, quản trị).</p>
+    <div class="row">
+      <div><label>Chủ đề</label><select id="thTheme"></select></div>
+      <div><label>Hiệu ứng rơi nhẹ (tuyết, hoa, lồng đèn…)</label><select id="thFx"><option value="1">Bật (thỉnh thoảng)</option><option value="0">Tắt</option></select></div>
+    </div>
+    <div class="promoBar static" style="margin-top:10px"><span>🎉 GIẢM 10% · Tên chương trình khuyến mại 🎉</span></div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="btnThSave">Áp dụng cho mọi thiết bị</button></div>
+  </details>
+
+  <details class="fold">
     <summary>Thông tin hóa đơn</summary>
     <div class="row">
       <div><label>Tên quán (tiêu đề hóa đơn)</label><input id="sName"></div>
@@ -259,6 +276,7 @@
 
 </main>
 </div>
+<div id="fx"></div>
 <div id="toast"></div>
 
 <script>
@@ -392,6 +410,7 @@ async function enter() {
   resetOrder(); impLines = []; renderImp(); openTab(mine[0].id);
 }
 function openTab(t) {
+  if (t !== 'admin') applyTheme(getSettings().theme, getSettings().fx);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === t));
   if (t === 'sale') { loadServerSettings(); refreshPromos(); }
@@ -509,7 +528,7 @@ $('btnPay').onclick = async () => {
 const SET_KEY = 'bh_settings';
 let SETTINGS = null;
 const normSettings = o => { o = o || {}; return { shopName: o.shopName || '', address: o.address || '', taxPct: o.taxPct === undefined ? 10 : (Number(o.taxPct) || 0),
-  bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '' }; };
+  bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '', theme: o.theme || 'default', fx: o.fx !== false }; };
 function getSettings() {
   if (!SETTINGS) { let o = {}; try { o = JSON.parse(store.get(SET_KEY) || '{}') || {}; } catch (e) {} SETTINGS = normSettings(o); }
   return SETTINGS;
@@ -518,7 +537,7 @@ function getSettings() {
 async function loadServerSettings() {
   try {
     const s = await api('getShopSettings');
-    if (s && typeof s === 'object' && Object.keys(s).length) { SETTINGS = normSettings(s); store.set(SET_KEY, JSON.stringify(SETTINGS)); return 'ok'; }
+    if (s && typeof s === 'object' && Object.keys(s).length) { SETTINGS = normSettings(s); store.set(SET_KEY, JSON.stringify(SETTINGS)); applyTheme(SETTINGS.theme, SETTINGS.fx); return 'ok'; }
     return 'empty';
   } catch (e) { return 'fail'; }
 }
@@ -917,7 +936,7 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   const tax = Number($('sTax').value);
   if (!(tax >= 0 && tax <= 100)) throw new Error('Thuế phải từ 0 đến 100.');
   const obj = { shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
-    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr };
+    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr, theme: getSettings().theme, fx: getSettings().fx };
   SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj));
   let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
   const b = obj.bank;
@@ -925,7 +944,7 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   else toast(synced ? 'Đã lưu và đồng bộ cho mọi thiết bị.' : 'Đã lưu trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
 });
 async function loadAdmin() {
-  fillSettings(); if (!$('pStart').value && !promoEditId) promoFormReset(); loadPromos();
+  fillSettings(); fillTheme(); if (!$('pStart').value && !promoEditId) promoFormReset(); loadPromos();
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
@@ -1012,8 +1031,70 @@ $('btnRevokeAll').onclick = e => {
   });
 };
 
+/* ---------- Giao diện theo chủ đề ngày lễ ---------- */
+const T = (id, name, accent, bg, tab, soft, line, bar1, bar2, barInk, fx) => ({ id, name, bar: [bar1, bar2], barInk, fx,
+  v: { bg, card: '#ffffff', ink: '#1f2a2e', muted: '#6b7479', line, accent, tab, soft } });
+const THEMES = [
+  T('default', 'Mặc định (xanh ngọc)', '#0f5c5c', '#f6f5f1', '#ebe9e2', '#eef4f3', '#dcdad2', '#146c2e', '#2fa04f', '#ffe45c', ['❄']),
+  T('tet', 'Tết Nguyên Đán', '#b91c1c', '#fff5ea', '#f7e1c9', '#ffe9dc', '#edd3b8', '#c0121f', '#e11d2e', '#ffd700', ['🌼', '🌸', '🧧']),
+  T('valentine', 'Valentine 14/2', '#be123c', '#fff1f3', '#fbd9df', '#ffe4e9', '#f1cbd3', '#e11d48', '#fb4b6a', '#fff4b0', ['💖', '🌹', '💕']),
+  T('women83', 'Quốc tế Phụ nữ 8/3', '#be185d', '#fff1f6', '#f9d9e6', '#ffe4ee', '#f1cadb', '#db2777', '#ec4899', '#fff7b0', ['🌷', '🌸', '🌹']),
+  T('hung', 'Giỗ Tổ Hùng Vương (10/3 âm)', '#9a3412', '#fbf1e3', '#f0dfc6', '#fbe8cf', '#e5d2b4', '#8a1c1c', '#b32424', '#ffd966', ['🌼', '🍃']),
+  T('liberation', 'Giải phóng miền Nam 30/4', '#b91c1c', '#fff3f0', '#f6dcd6', '#ffe6e0', '#ecc9c1', '#c8102e', '#e11d2e', '#ffe000', ['⭐', '🕊️']),
+  T('labor', 'Quốc tế Lao động 1/5', '#b91c1c', '#fdf1f1', '#f4d8d8', '#fbe3e3', '#eac5c5', '#9f1239', '#c81e4a', '#ffe066', ['⭐', '🌹']),
+  T('children', 'Quốc tế Thiếu nhi 1/6', '#0284c7', '#eff8ff', '#d7ebf9', '#e0f2fe', '#c4def0', '#f97316', '#fb923c', '#fff8c4', ['🎈', '⭐', '🌈']),
+  T('vulan', 'Vu Lan báo hiếu (rằm tháng 7)', '#9d3b6b', '#fbf1f4', '#f1dbe3', '#f8e3ec', '#e6c9d4', '#8a2f5c', '#b8497f', '#ffe9a8', ['🌹', '🌸', '🤍']),
+  T('national', 'Quốc khánh 2/9', '#c8102e', '#fff6f0', '#f6e0d6', '#ffe9df', '#ecd0c4', '#c8102e', '#e0202f', '#ffe000', ['⭐']),
+  T('midautumn', 'Tết Trung thu (rằm tháng 8)', '#b45309', '#fbf3df', '#f1e3bd', '#fdf0c8', '#e6d6a8', '#b91c1c', '#dc2626', '#ffe066', ['🏮', '⭐', '🌕']),
+  T('women2010', 'Phụ nữ Việt Nam 20/10', '#a21caf', '#fdf2fb', '#f2d9f0', '#f9e3f6', '#e6c6e2', '#c026d3', '#d946ef', '#fff3a0', ['🌹', '🌸', '💐']),
+  T('teacher', 'Nhà giáo Việt Nam 20/11', '#1d4ed8', '#eff4ff', '#d9e3fa', '#e3ebff', '#c5d3f1', '#1e40af', '#3b6fe0', '#ffe566', ['🌻', '📚', '🌸']),
+  T('halloween', 'Halloween 31/10', '#5b2a86', '#f3ece6', '#e9ddd2', '#f1e7fa', '#dccfc3', '#c2410c', '#ea7a1a', '#fff3b0', ['🎃', '🦇', '👻']),
+  T('christmas', 'Giáng sinh 24-25/12', '#a4161a', '#f7efe8', '#efe0d6', '#fbeaea', '#e0cfc4', '#0b6623', '#1f8f3a', '#ffd84d', ['❄', '❄', '🎄', '⭐']),
+];
+let fxTimer = 0, fxBurst = 0, fxList = [], curTheme = '';
+function stopFx() { clearTimeout(fxTimer); clearInterval(fxBurst); fxTimer = fxBurst = 0; $('fx').innerHTML = ''; }
+function fxDrop() {
+  const e = document.createElement('span'), dur = 9 + Math.random() * 7;
+  e.textContent = fxList[Math.floor(Math.random() * fxList.length)];
+  e.style.cssText = `left:${Math.random() * 100}vw;font-size:${12 + Math.random() * 12}px;animation-duration:${dur}s,${3 + Math.random() * 3}s`;
+  $('fx').appendChild(e); setTimeout(() => e.remove(), dur * 1000 + 300);
+}
+/* Rơi nhẹ khoảng 18 giây, nghỉ 45-75 giây rồi rơi tiếp (không rơi khi máy bật chế độ giảm chuyển động) */
+function startFx(list) {
+  stopFx(); fxList = list || [];
+  if (!fxList.length || (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches)) return;
+  const burst = () => {
+    let n = 0; clearInterval(fxBurst);
+    fxBurst = setInterval(() => { if (++n > 40) return clearInterval(fxBurst); if (!document.hidden) fxDrop(); }, 450);
+    fxTimer = setTimeout(burst, 45000 + Math.random() * 30000);
+  };
+  fxTimer = setTimeout(burst, 3000);
+}
+function applyTheme(id, fxOn) {
+  const t = THEMES.find(x => x.id === id) || THEMES[0], on = fxOn === undefined ? getSettings().fx : fxOn, r = document.documentElement.style;
+  Object.keys(t.v).forEach(k => r.setProperty('--' + k, t.v[k]));
+  r.setProperty('--bar1', t.bar[0]); r.setProperty('--bar2', t.bar[1]); r.setProperty('--barInk', t.barInk);
+  document.querySelectorAll('.promoBar.static').forEach(b => b.style.background = `linear-gradient(90deg,${t.bar[0]},${t.bar[1]})`);
+  const key = t.id + '|' + on;
+  if (key !== curTheme) { curTheme = key; startFx(on ? t.fx : []); }
+}
+function fillTheme() {
+  const st = getSettings();
+  $('thTheme').innerHTML = THEMES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  $('thTheme').value = THEMES.some(t => t.id === st.theme) ? st.theme : 'default'; $('thFx').value = st.fx ? '1' : '0';
+}
+const previewTheme = () => applyTheme($('thTheme').value, $('thFx').value === '1');
+$('thTheme').onchange = previewTheme; $('thFx').onchange = previewTheme;
+$('btnThSave').onclick = e => run(e.target, async () => {
+  const obj = { ...getSettings(), theme: $('thTheme').value, fx: $('thFx').value === '1' };
+  SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj)); applyTheme(SETTINGS.theme, SETTINGS.fx);
+  let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
+  toast(synced ? 'Đã đổi giao diện cho mọi thiết bị.' : 'Đã đổi trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
+});
+
 /* ---------- Khởi động: thử khôi phục phiên cũ ---------- */
 (async function boot() {
+  applyTheme(getSettings().theme, getSettings().fx);
   TOKEN = store.get('bh_token');
   if (TOKEN) { try { await enter(); return; } catch (e) {} }
   showLogin('');
