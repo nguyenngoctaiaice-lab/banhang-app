@@ -114,12 +114,12 @@
   <label style="text-align:left">Mật khẩu</label><input id="lPass" type="password" autocomplete="current-password">
   <label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink);text-align:left"><input type="checkbox" id="lRemember" style="width:auto"> Ghi nhớ tên đăng nhập và mật khẩu</label>
   <button class="btn" id="btnLogin" style="margin-top:14px;width:100%">Đăng nhập</button>
-  <div id="otpBox" hidden style="margin-top:12px;text-align:left">
+  <p id="loginMsg" class="empty"></p>
+  <div id="otpBox" hidden style="margin-top:4px;text-align:left">
     <label>Mã OTP (gửi qua Gmail)</label><input id="lOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 chữ số">
     <div class="row" style="margin-top:10px"><button class="btn" id="btnOtp">Xác nhận OTP</button><button class="btn ghost" id="btnOtpBack" type="button">Gửi lại / quay lại</button></div>
   </div>
-  <p id="loginMsg" class="empty"></p>
-  <p class="empty" style="margin:0">Mã thiết bị: <b id="devCode"></b> <button type="button" class="btn ghost sm" id="btnCopy">Sao chép</button></p>
+  <p class="empty" id="devRow" style="margin:0">Mã thiết bị: <b id="devCode"></b> <button type="button" class="btn ghost sm" id="btnCopy">Sao chép</button></p>
 </div>
 
 <!-- ỨNG DỤNG -->
@@ -423,13 +423,13 @@ function showLogin(msg) {
 $('btnLogin').onclick = e => run(e.target, async () => {
   loginMsg('');
   const p = await call('login', [$('lUser').value, $('lPass').value, deviceId(), deviceName()], false);
-  if (p.status === 'otp') { otpTicket = p.ticket; $('otpBox').hidden = false; $('btnLogin').hidden = true; $('lOtp').value = ''; $('lOtp').focus(); return loginMsg(p.message); }
+  if (p.status === 'otp') { otpTicket = p.ticket; $('otpBox').hidden = false; $('devRow').hidden = true; $('btnLogin').hidden = true; $('lOtp').value = ''; $('lOtp').focus(); return loginMsg(p.message); }
   if (p.status !== 'ok') return loginMsg(p.message, true);
   await loginOk(p);
 });
 /* Admin tối cao: thiết bị lạ cần nhập OTP gửi về Gmail */
 let otpTicket = '';
-function otpReset() { otpTicket = ''; $('otpBox').hidden = true; $('btnLogin').hidden = false; $('lOtp').value = ''; }
+function otpReset() { otpTicket = ''; $('otpBox').hidden = true; $('devRow').hidden = false; $('btnLogin').hidden = false; $('lOtp').value = ''; }
 async function loginOk(p) {
   TOKEN = p.token; store.set('bh_token', TOKEN);
   if ($('lRemember').checked) store.set('bh_cred', JSON.stringify({ u: $('lUser').value, p: $('lPass').value })); else store.del('bh_cred');
