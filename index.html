@@ -127,9 +127,8 @@
   <div id="findBox" hidden>
     <div class="dlg">
       <div class="row" style="align-items:center"><h2 style="margin:0;text-align:left">Tìm lại hóa đơn (chỉ xem / in)</h2><button class="btn ghost sm" id="findClose" style="flex:0 0 auto">Đóng</button></div>
+      <p class="empty" style="margin:6px 0 0">Chỉ tìm được hóa đơn của hôm nay. Muốn tìm hóa đơn cũ hơn, hãy vào tab Quản trị (admin).</p>
       <div class="row" style="align-items:end;margin-top:6px">
-        <div><label id="fLblFrom">Ngày</label><input id="findFrom" type="date"></div>
-        <div class="adm"><label>Đến ngày</label><input id="findTo" type="date"></div>
         <div><label>Mã hóa đơn / bàn</label><input id="findQ" placeholder="Không bắt buộc"></div>
         <button class="btn" id="findGo" style="flex:0 0 auto">Tìm</button>
       </div>
@@ -179,7 +178,17 @@
 </section>
 
 <section class="tab" id="admin">
-  <h2>Thông tin hóa đơn</h2>
+  <h2>Tìm hóa đơn (chuyên sâu)</h2>
+  <div class="row" style="align-items:end">
+    <div><label>Từ ngày</label><input id="admFrom" type="date"></div>
+    <div><label>Đến ngày</label><input id="admTo" type="date"></div>
+    <div><label>Nhân viên</label><select id="admStaff"></select></div>
+    <div><label>Mã hóa đơn / bàn</label><input id="admQ" placeholder="Không bắt buộc"></div>
+    <button class="btn" id="admGo" style="flex:0 0 auto">Tìm</button>
+  </div>
+  <div id="admInfo" class="empty"></div>
+  <div id="admList" class="wrap"></div>
+  <h2 style="margin-top:20px">Thông tin hóa đơn</h2>
   <div class="row">
     <div><label>Tên quán (tiêu đề hóa đơn)</label><input id="sName"></div>
     <div><label>Địa chỉ</label><input id="sAddr"></div>
@@ -334,6 +343,8 @@ async function enter() {
   $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
   $('impItem').innerHTML = DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
   $('repStaff').innerHTML = '<option value="">Tất cả nhân viên</option>' + DATA.staff.map(s => `<option value="${esc(s.username)}">${esc(s.name)}</option>`).join('');
+  $('admStaff').innerHTML = $('repStaff').innerHTML;
+  { const t0 = new Date().toLocaleDateString('sv-SE'); $('admFrom').value = t0; $('admTo').value = t0; }
   document.querySelectorAll('.adm').forEach(el => el.hidden = !admin);
   $('lFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
   const today = new Date().toLocaleDateString('sv-SE'); $('repFrom').value = today; $('repTo').value = today;
@@ -655,17 +666,14 @@ function drawFind() {
 }
 const repCache = {};
 function openFind() {
-  const admin = USER.role === 'ADMIN', today = new Date().toLocaleDateString('sv-SE');
-  $('fLblFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
-  $('findFrom').value = today; $('findTo').value = today; $('findQ').value = '';
-  $('findBox').hidden = false; $('findList').innerHTML = ''; runFind();
+  $('findQ').value = ''; $('findBox').hidden = false; $('findList').innerHTML = ''; runFind();
 }
 async function runFind() {
-  const admin = USER.role === 'ADMIN', from = $('findFrom').value, to = admin ? $('findTo').value : from;
-  findKey = from + '|' + to; const key = findKey;
+  const today = new Date().toLocaleDateString('sv-SE');
+  findKey = today + '|' + today; const key = findKey;
   if (repCache[key]) drawFind();   // hiện ngay kết quả đã có, rồi làm mới ở nền
   try {
-    const r = await api('findInvoices', from, to);
+    const r = await api('findInvoices', today, today);
     r.forEach(i => paidCache.set(i.id, Promise.resolve(i)));
     repCache[key] = r; if (key === findKey) drawFind();
   } catch (e) { toast(e.message, true); }
@@ -674,20 +682,47 @@ async function getPaidOrder(id) {
   let pr = paidCache.get(id); if (!pr) { pr = api('getOrder', id); paidCache.set(id, pr); }
   try { const o = await pr; if (!o) throw new Error('Không có dữ liệu hóa đơn.'); return o; } catch (e) { paidCache.delete(id); throw e; }
 }
-async function viewOldInvoice(k) {
-  const inv = findRows[k]; if (!inv) return;
+async function viewInvoice(inv) {
+  if (!inv) return;
   const o = await getPaidOrder(inv.id), c = calcReceipt(o.items, o.custType);
+  if (!$('sale').classList.contains('on')) openTab('sale');   // hóa đơn hiện ở tab Bán hàng
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
     openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true });
   $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
 }
+const viewOldInvoice = k => viewInvoice(findRows[k]);
 $('btnFind').onclick = openFind;
 $('findClose').onclick = () => $('findBox').hidden = true;
 $('findGo').onclick = e => run(e.target, runFind);
 $('findQ').addEventListener('input', drawFind);
 $('findQ').addEventListener('keydown', e => { if (e.key === 'Enter') runFind(); });
-$('findFrom').addEventListener('change', runFind); $('findTo').addEventListener('change', runFind);
 $('findList').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) run(b, () => viewOldInvoice(+b.dataset.k)); });
+
+/* ---------- Quản trị: tìm hóa đơn chuyên sâu (mọi ngày, mọi nhân viên) ---------- */
+let admAll = [], admView = [], admDone = false;
+function drawAdm() {
+  if (!admDone) return;
+  const q = nrm($('admQ').value), opt = $('admStaff').selectedOptions[0], sn = $('admStaff').value && opt ? opt.textContent : '';
+  admView = admAll.filter(i => (!q || nrm(i.id + i.table).includes(q)) && (!sn || i.staff === sn));
+  const total = admView.reduce((t, i) => t + (Number(i.total) || 0), 0);
+  $('admInfo').textContent = `${admView.length} hóa đơn · tổng ${money(total)}đ` + (admAll.length >= 1000 ? ' · chỉ hiện 1000 hóa đơn mới nhất, hãy thu hẹp khoảng ngày' : '');
+  $('admList').innerHTML = admView.length ? `<table><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th><th>Nhân viên</th><th class="n">Tiền</th><th></th></tr>${admView.map((i, k) =>
+    `<tr><td>${esc(i.date || i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td><td>${esc(i.staff)}</td><td class="n">${money(i.total)}</td>
+     <td><button class="btn ghost sm" data-k="${k}">Xem / In</button></td></tr>`).join('')}</table>` : '<div class="empty">Không tìm thấy hóa đơn.</div>';
+}
+async function runAdm() {
+  const from = $('admFrom').value, to = $('admTo').value || from;
+  if (!from) throw new Error('Hãy chọn ngày bắt đầu.');
+  if (from > to) throw new Error('Ngày bắt đầu phải trước ngày kết thúc.');
+  const r = await api('findInvoices', from, to, $('admStaff').value);
+  r.forEach(i => paidCache.set(i.id, Promise.resolve(i)));
+  admAll = r; admDone = true; drawAdm();
+}
+$('admGo').onclick = e => run(e.target, runAdm);
+$('admStaff').addEventListener('change', () => runAdm().catch(err => toast(err.message, true)));
+$('admQ').addEventListener('input', drawAdm);
+$('admQ').addEventListener('keydown', e => { if (e.key === 'Enter') run($('admGo'), runAdm); });
+$('admList').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) run(b, () => viewInvoice(admView[+b.dataset.k])); });
 
 /* ---------- Nhập hàng ---------- */
 let impLines = [];
