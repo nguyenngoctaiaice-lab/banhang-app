@@ -973,24 +973,35 @@ $('aimpGo').onclick = e => run(e.target, () => loadAdmImp(false));
 $('aimpAll').onclick = e => run(e.target, () => loadAdmImp(true));
 
 /* ---------- Tồn kho / Kiểm kê ---------- */
+const fmtDiff = n => (n > 0 ? '+' : '') + fmtQty(n);
 async function loadStock() {
   try {
     const r = await api('getInventoryReport'); $('stockTitle').textContent = 'Tồn kho lúc ' + r.asOf;
-    $('stockBody').innerHTML = `<table><tr><th>Mặt hàng</th><th class="n">Tồn</th><th class="n">Tối thiểu</th><th class="n">Giá trị</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n ${x.low ? 'low' : ''}">${x.qty} ${esc(x.unit)}</td><td class="n">${x.minStock}</td><td class="n">${money(x.value)}</td></tr>`).join('')}
-      <tr><th colspan="3" class="n">Tổng giá trị tồn</th><th class="n">${money(r.totalValue)}</th></tr></table>`;
+    $('stockBody').innerHTML = `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Tồn</th><th class="n">Đã bán</th><th class="n">Chênh lệch</th><th class="n">Giá trị</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${fmtQty(x.stockIn)} ${esc(x.unit)}</td><td class="n">${fmtQty(x.sold)}</td><td class="n ${x.low ? 'low' : ''}">${fmtDiff(x.qty)}</td><td class="n">${money(x.value)}</td></tr>`).join('')}
+      <tr><th colspan="4" class="n">Tổng giá trị tồn</th><th class="n">${money(r.totalValue)}</th></tr></table>
+      <p class="empty">Chênh lệch = Tồn − Đã bán (số âm = đã bán nhiều hơn số hàng đã nhập). Giá trị = Chênh lệch × giá vốn của món.</p>`;
   } catch (e) { toast(e.message, true); }
 }
 $('btnStockRefresh').onclick = e => run(e.target, loadStock);
 async function loadCount() {
   try {
     const r = await api('getInventoryReport');
-    $('countBody').innerHTML = `<table><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th>Thực tế</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${x.qty} ${esc(x.unit)}</td><td><input type="number" inputmode="decimal" data-id="${esc(x.id)}" style="width:100px"></td></tr>`).join('')}</table>`;
+    $('countBody').innerHTML = `<table class="zebra"><tr><th>Mặt hàng</th><th class="n">Sổ sách</th><th>Thực tế</th><th class="n">Chênh lệch</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="n">${fmtQty(x.qty)} ${esc(x.unit)}</td><td><input type="text" inputmode="decimal" autocomplete="off" data-id="${esc(x.id)}" data-book="${x.qty}" style="width:100px"></td><td class="n cdiff">—</td></tr>`).join('')}</table>`;
   } catch (e) { toast(e.message, true); }
 }
+/* Gõ số thực tế -> hiện ngay chênh lệch = Thực tế - Sổ sách */
+$('countBody').addEventListener('input', e => {
+  const i = e.target; if (!i.dataset || i.dataset.book === undefined) return;
+  fmtField(i, true, e.data);
+  const c = i.closest('tr').querySelector('.cdiff');
+  if (i.value.trim() === '') { c.textContent = '—'; c.className = 'n cdiff'; return; }
+  const d = parseNum(i.value) - Number(i.dataset.book);
+  c.textContent = fmtDiff(Math.round(d * 1000) / 1000); c.className = 'n cdiff ' + (d < 0 ? 'neg' : d > 0 ? 'pos' : '');
+});
 $('btnCountSave').onclick = e => run(e.target, async () => {
-  const rows = [...document.querySelectorAll('#countBody input')].map(i => ({ id: i.dataset.id, actual: i.value }));
+  const rows = [...document.querySelectorAll('#countBody input')].map(i => ({ id: i.dataset.id, actual: i.value.trim() === '' ? '' : parseNum(i.value) }));
   const r = await api('saveStocktake', rows);
   toast(`Đã kiểm kê ${r.count} món · chênh lệch ${money(r.diffValue)}đ`); loadCount();
 });
