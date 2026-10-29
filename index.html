@@ -62,7 +62,8 @@
   #receipt th { color:#666; } #receipt td.n, #receipt th.n { text-align:right; }
   #receipt .rr { display:flex; justify-content:space-between; gap:8px; padding:2px 0; } #receipt .rr.b { font-weight:700; } #receipt .rr.i { font-style:italic; }
   #receipt .grand { display:flex; justify-content:space-between; font-size:20px; font-weight:700; padding:6px 0; }
-  #receipt .qr { display:block; margin:10px auto; width:100%; max-width:260px; height:auto; }
+  #receipt .qr { display:block; margin:6px auto; width:110px; max-width:100%; height:auto; }
+  #receipt .bankinfo { font-size:12px; line-height:1.35; }
   .qrprev { display:block; max-width:160px; margin:8px 0; border:1px solid var(--line); border-radius:6px; }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } .noprint { visibility:hidden !important; } }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
@@ -390,7 +391,7 @@ function showReceipt(r) {
     <div class="c"><div style="font-weight:700;margin-top:6px">Trân trọng cảm ơn</div>
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
       ${st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : ''}
-      ${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div>
+      <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
     <div class="row noprint" style="margin-top:12px"><button class="btn ghost sm" data-a="print">In hóa đơn</button><button class="btn ghost sm" data-a="close">Đóng</button></div>`;
 }
 $('receipt').addEventListener('click', e => {
