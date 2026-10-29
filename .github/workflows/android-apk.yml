@@ -1,0 +1,79 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:          # bấm tay: tab Actions > Build Android APK > Run workflow
+
+
+  push:
+    paths:
+      - package.json
+      - .github/workflows/android-apk.yml
+
+permissions:
+  contents: write             # để đăng file APK lên mục Releases
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Cài Capacitor
+        run: npm install
+
+      - name: Tạo capacitor.config.json
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          BUNDLED: ${{ vars.APP_BUNDLED }}
+        run: |
+          node -e "
+          const o = process.env.OWNER.toLowerCase(), r = process.env.REPO;
+          const url = r.toLowerCase() === o + '.github.io' ? 'https://' + r + '/' : 'https://' + o + '.github.io/' + r + '/';
+          const c = { appId: 'vn.banhang.app', appName: 'Quản lý bán hàng', webDir: 'www' };
+          // Mặc định: app mở thẳng trang web trên GitHub Pages -> sửa web là app tự cập nhật, không cần build lại APK.
+          // Đặt biến APP_BUNDLED = true (Settings > Variables) nếu muốn nhúng sẵn index.html vào APK.
+          if (process.env.BUNDLED !== 'true') c.server = { url: url, cleartext: false };
+          require('fs').writeFileSync('capacitor.config.json', JSON.stringify(c, null, 2));
+          console.log(c);"
+
+      - name: Chuẩn bị thư mục web
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+
+      - name: Tạo dự án Android
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Đổi tên file APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk QuanLyBanHang.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuanLyBanHang-apk
+          path: QuanLyBanHang.apk
+
+      - name: Đăng lên Releases (link tải cố định)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: APK mới nhất
+          body: Bản cài đặt Android mới nhất của Quản lý bán hàng.
+          files: QuanLyBanHang.apk
