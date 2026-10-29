@@ -62,6 +62,9 @@
   th, td, td.n, th.n { text-align:center; }
   .kpi { text-align:center; }
   .empty { text-align:center; }
+  #uRoles { display:flex; flex-wrap:wrap; gap:6px 14px; justify-content:center; padding:6px 0; }
+  #uRoles label { display:flex; align-items:center; gap:5px; margin:0; color:var(--ink); font-size:14px; cursor:pointer; }
+  #uRoles input { width:auto; }
   #receipt th, #receipt td { text-align:left; }
   #receipt th.n, #receipt td.n { text-align:right; }
   #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:8px; opacity:0; pointer-events:none; transition:opacity .2s; max-width:90vw; }
@@ -304,7 +307,9 @@
       <div><label>Tên đăng nhập</label><input id="uGit" autocapitalize="none" autocomplete="off"></div>
       <div><label>Họ tên</label><input id="uName"></div>
       <div><label>Mật khẩu (để trống = giữ nguyên)</label><input id="uPass" autocomplete="off"></div>
-      <div><label>Vai trò</label><select id="uRole"><option value="BANHANG">Bán hàng</option><option value="KHO">Kho</option><option value="ADMIN">Admin</option></select></div>
+      <div style="flex:2 1 320px"><label>Vai trò (chọn nhiều)</label><div id="uRoles">
+        <label><input type="checkbox" value="BANHANG"> Bán hàng</label><label><input type="checkbox" value="BAOCAO"> Báo cáo</label><label><input type="checkbox" value="NHAPHANG"> Nhập hàng</label>
+        <label><input type="checkbox" value="TONKHO"> Tồn kho</label><label><input type="checkbox" value="KIEMKE"> Kiểm kê</label><label><input type="checkbox" value="ADMIN"> Admin (toàn quyền)</label></div></div>
       <div><label>Trạng thái</label><select id="uActive"><option value="1">Hoạt động</option><option value="0">Khóa</option></select></div>
     </div>
     <div class="row" style="margin-top:10px"><button class="btn" id="btnUserSave">Lưu nhân viên</button></div>
@@ -312,7 +317,7 @@
 
   <details class="fold">
     <summary>Thiết bị đăng nhập</summary>
-    <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="btnRevokeAll">Thu hồi tất cả (trừ admin đầu tiên)</button></div>
+    <div class="row" style="margin-bottom:8px"><button class="btn ghost" id="btnRevokeAll">Xóa tất cả thiết bị (trừ thiết bị đang dùng)</button></div>
     <div id="devList" class="wrap"></div>
   </details>
 </section>
@@ -424,20 +429,21 @@ $('btnLogout').onclick = () => { call('logout', []).catch(() => {}); showLogin('
 /* ---------- Vào ứng dụng theo vai trò ---------- */
 const TABS = [
   { id: 'sale', label: 'Bán hàng', roles: ['BANHANG'] },
-  { id: 'report', label: 'Báo cáo', roles: ['BANHANG'] },
-  { id: 'import', label: 'Nhập hàng', roles: ['KHO'] },
-  { id: 'stock', label: 'Tồn kho', roles: ['KHO'] },
-  { id: 'count', label: 'Kiểm kê', roles: ['KHO'] },
+  { id: 'report', label: 'Báo cáo', roles: ['BAOCAO'] },
+  { id: 'import', label: 'Nhập hàng', roles: ['NHAPHANG'] },
+  { id: 'stock', label: 'Tồn kho', roles: ['TONKHO'] },
+  { id: 'count', label: 'Kiểm kê', roles: ['KIEMKE'] },
   { id: 'admin', label: 'Quản trị', roles: [] },
 ];
-const ROLE_NAME = { ADMIN: 'Admin', BANHANG: 'Bán hàng', KHO: 'Kho' };
+const ROLE_NAME = { ADMIN: 'Admin', BANHANG: 'Bán hàng', BAOCAO: 'Báo cáo', NHAPHANG: 'Nhập hàng', TONKHO: 'Tồn kho', KIEMKE: 'Kiểm kê' };
+const roleText = rs => (rs || []).map(r => ROLE_NAME[r] || r).join(', ');
 
 async function enter() {
   const [dd, ss] = await Promise.all([api('getInitData'), loadServerSettings()]); DATA = dd; USER = DATA.user;
   const admin = USER.role === 'ADMIN';
   if (ss === 'empty' && admin && store.get(SET_KEY)) { try { api('saveShopSettings', JSON.parse(store.get(SET_KEY))).catch(() => {}); } catch (e) {} }
   setTimeout(() => { loadQRLib().catch(() => {}); loadH2C().catch(() => {}); }, 1500);
-  $('who').textContent = `${USER.name} · ${ROLE_NAME[USER.role]}`;
+  $('who').textContent = `${USER.name} · ${admin ? 'Admin' : roleText(USER.roles)}`;
   fillTables();
   $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
   fillImpItems();
@@ -448,7 +454,7 @@ async function enter() {
   document.querySelectorAll('.adm').forEach(el => el.hidden = !admin);
   $('lFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
   const today = new Date().toLocaleDateString('sv-SE'); $('repFrom').value = today; $('repTo').value = today;
-  const mine = TABS.filter(t => admin || t.roles.includes(USER.role));
+  const mine = TABS.filter(t => admin || t.roles.some(r => (USER.roles || []).includes(r)));
   $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
   $('login').hidden = true; $('app').hidden = false;
   resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id);
@@ -1238,25 +1244,36 @@ async function loadAdmin() {
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
-      `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${ROLE_NAME[u.role] || esc(u.role)}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
-       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.role)}" data-a="${u.active ? 1 : 0}">Sửa</button></td></tr>`).join('')}</table>`;
+      `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(roleText(u.roles)) || '<span class="neg">Chưa có</span>'}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
+       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}">Sửa</button></td></tr>`).join('')}</table>`;
     $('devList').innerHTML = devs.length ? `<table><tr><th>Tên đăng nhập</th><th>Mã thiết bị</th><th>Thiết bị</th><th>Yêu cầu lúc</th><th>Trạng thái</th><th></th></tr>${devs.map(d =>
-      `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}${d.root ? '<br><small>Admin đầu tiên</small>' : ''}</td><td>
+      `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}${d.deviceId === deviceId() ? '<br><small>Thiết bị đang dùng</small>' : ''}</td><td>
         ${d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
         ${d.status !== 'REVOKED' ? `<button class="btn ghost sm" data-s="REVOKED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Thu hồi</button>` : ''}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có thiết bị nào đăng nhập.</div>';
   } catch (e) { toast(e.message, true); }
 }
+const roleBoxes = () => [...document.querySelectorAll('#uRoles input')];
+function setRoles(list) {
+  roleBoxes().forEach(c => c.checked = list.includes(c.value));
+  syncAdminBox();
+}
+function syncAdminBox() {   // Admin = toàn quyền: chọn Admin thì các vai trò khác không cần chọn nữa
+  const adm = roleBoxes().find(c => c.value === 'ADMIN').checked;
+  roleBoxes().forEach(c => { if (c.value !== 'ADMIN') { c.disabled = adm; if (adm) c.checked = false; } });
+}
+const getRoles = () => { const a = roleBoxes().filter(c => c.checked).map(c => c.value); return a.includes('ADMIN') ? ['ADMIN'] : a; };
+$('uRoles').addEventListener('change', syncAdminBox);
 $('userList').addEventListener('click', e => {
   const d = e.target.dataset; if (!d.edit) return;
-  $('uGit').value = d.edit; $('uName').value = d.n; $('uRole').value = d.r; $('uActive').value = d.a;
+  $('uGit').value = d.edit; $('uName').value = d.n; setRoles(d.r.split(',')); $('uActive').value = d.a;
 });
 $('devList').addEventListener('click', e => {
   const d = e.target.dataset; if (!d.s) return;
   run(e.target, async () => { await api('adminSetDevice', { username: d.g, deviceId: d.d, status: d.s }); toast('Đã cập nhật thiết bị.'); loadAdmin(); });
 });
 $('btnUserSave').onclick = e => run(e.target, async () => {
-  await api('adminSaveUser', { username: $('uGit').value, name: $('uName').value, password: $('uPass').value, role: $('uRole').value, active: $('uActive').value === '1' });
-  toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; loadAdmin();
+  await api('adminSaveUser', { username: $('uGit').value, name: $('uName').value, password: $('uPass').value, roles: getRoles(), active: $('uActive').value === '1' });
+  toast('Đã lưu nhân viên.'); $('uGit').value = ''; $('uName').value = ''; $('uPass').value = ''; setRoles([]); loadAdmin();
 });
 
 /* ---------- Quản trị: khuyến mại ---------- */
@@ -1306,18 +1323,18 @@ $('promoList').addEventListener('click', e => {
   }
 });
 
-/* ---------- Quản trị: thu hồi tất cả thiết bị (trừ admin đầu tiên) ---------- */
-const REVOKE_LABEL = 'Thu hồi tất cả (trừ admin đầu tiên)';
+/* ---------- Quản trị: xóa tất cả thiết bị (trừ thiết bị đang dùng) ---------- */
+const REVOKE_LABEL = 'Xóa tất cả thiết bị (trừ thiết bị đang dùng)';
 $('btnRevokeAll').onclick = e => {
   const b = e.target;
   if (!b.dataset.sure) {
-    b.dataset.sure = 1; b.textContent = 'Bấm lại để xác nhận thu hồi tất cả';
+    b.dataset.sure = 1; b.textContent = 'Bấm lại để xác nhận xóa tất cả';
     setTimeout(() => { delete b.dataset.sure; b.textContent = REVOKE_LABEL; }, 5000); return;
   }
   delete b.dataset.sure; b.textContent = REVOKE_LABEL;
   run(b, async () => {
     const r = await api('adminRevokeAllDevices');
-    toast(r.count ? `Đã thu hồi ${r.count} thiết bị (giữ nguyên thiết bị của ${r.keep}).` : 'Không có thiết bị nào cần thu hồi.'); loadAdmin();
+    toast(r.count ? `Đã xóa ${r.count} thiết bị. Chỉ còn thiết bị đang dùng của ${r.keep}.` : 'Không có thiết bị nào cần xóa.'); loadAdmin();
   });
 };
 
