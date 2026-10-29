@@ -81,6 +81,10 @@
   #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
   @media print { #findBox { display:none !important; } }
   @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } #receipt .noprint, #receipt .noprint * { display:none !important; } }
+  .promoBar { position:relative; overflow:hidden; height:40px; margin-bottom:10px; border-radius:8px; background:linear-gradient(90deg,#b3261e,#e8590c); color:#fff; }
+  .promoBar span { position:absolute; top:0; left:0; line-height:40px; font-size:20px; font-weight:700; white-space:nowrap; transform:translateX(-100%); animation:promoRun 16s linear infinite alternate; }
+  @keyframes promoRun { from { left:0; transform:translateX(-100%); } to { left:100%; transform:translateX(0); } }
+  @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; transform:none; } }
   details.fold { margin-top:16px; border-top:1px solid var(--line); padding-top:8px; }
   details.fold:first-of-type { margin-top:0; border-top:0; padding-top:0; }
   details.fold > summary { font-size:16px; font-weight:700; text-align:center; cursor:pointer; padding:8px 0; user-select:none; }
@@ -108,6 +112,7 @@
 <main>
 
 <section class="tab" id="sale">
+  <div id="promoBanner"></div>
   <div class="split">
     <div>
       <div class="row">
@@ -409,6 +414,18 @@ const curPromo = () => { const n = Date.now(); let b = null; (DATA.promos || [])
 async function refreshPromos() {
   try { const l = await api('listPromos'); if (JSON.stringify(l) !== JSON.stringify(DATA.promos || [])) { DATA.promos = l; renderCart(); } } catch (e) {}
 }
+/* Dải chữ chạy báo khuyến mại: chạy qua lại cho tới khi hết hạn thì tự biến mất */
+let promoBannerKey = '';
+function renderPromoBanner() {
+  const now = Date.now(), p2 = n => String(n).padStart(2, '0');
+  const f = ms => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`; };
+  const list = (DATA.promos || []).filter(p => p.endMs > now);
+  const key = list.map(p => p.id + p.pct + p.name + p.startMs + p.endMs).join('|');
+  if (key === promoBannerKey) return;
+  promoBannerKey = key;
+  $('promoBanner').innerHTML = list.map(p => `<div class="promoBar"><span>🎉 GIẢM ${esc(p.pct)}% · ${esc(p.name)} · Áp dụng từ ${f(p.startMs)} đến ${f(p.endMs)} 🎉</span></div>`).join('');
+}
+setInterval(() => { if (DATA && DATA.menu) renderPromoBanner(); }, 5000);
 const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
 function tickClock() {
   $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
@@ -423,7 +440,7 @@ function renderMenu() {
 }
 function renderCart() {
   const ids = Object.keys(cart); let gross = 0;
-  renderMenu();
+  renderMenu(); renderPromoBanner();
   $('invNo').textContent = cur.id ? 'Hóa đơn ' + cur.id : 'Hóa đơn mới (chưa có số)';
   tickClock();
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
@@ -520,7 +537,7 @@ function showReceipt(r, opt) {
   $('receipt').innerHTML = `<div class="c">
       <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
       <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div>
-      <div id="printTag" style="font-weight:700;font-size:15px;margin-top:2px" hidden></div></div>
+      <div id="printTag" style="font-weight:400;font-style:italic;font-size:15px;margin-top:2px" hidden></div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(r.table)}</div>
     <div><b>Phục vụ:</b> ${esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>
