@@ -13,11 +13,12 @@
   header { padding:10px 16px; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; gap:10px; }
   header b { flex:1; font-size:17px; } header small { opacity:.85; }
   header button { background:transparent; color:inherit; border:1px solid rgba(255,255,255,.5); border-radius:6px; padding:5px 10px; font:inherit; cursor:pointer; }
-  nav { display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto; background:var(--bg); position:sticky; top:0; z-index:2; }
+  nav { display:flex; gap:4px; padding:8px 8px 0; overflow-x:auto; scrollbar-width:none; background:var(--bg); position:sticky; top:0; z-index:2; }
   nav button { flex:0 0 auto; border:1px solid var(--line); border-bottom:none; background:#ebe9e2; padding:9px 14px; border-radius:8px 8px 0 0; font:inherit; color:var(--muted); cursor:pointer; }
+  nav button:first-child { margin-left:auto; } nav button:last-child { margin-right:auto; }
   nav button.on { background:var(--card); color:var(--ink); font-weight:600; }
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
-  section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:0 8px 8px 8px; padding:14px; }
+  section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
   h2 { font-size:16px; margin:0 0 10px; }
   label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
@@ -32,7 +33,9 @@
   .menu { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; }
   .menu button { text-align:left; padding:10px; border:1px solid var(--line); background:#fff; border-radius:8px; font:inherit; cursor:pointer; }
   .menu small { display:block; color:var(--muted); }
+  #menuPick { font-size:16px; padding:11px 9px; }
   .wrap { overflow-x:auto; }
+  tr.hrow { cursor:pointer; } tr.hrow:hover td, tr.hrow:active td { background:#f1efe8; }
   table { width:100%; border-collapse:collapse; }
   th, td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
   th { font-size:13px; color:var(--muted); font-weight:600; }
@@ -82,7 +85,7 @@
         <div><label>Bàn</label><select id="saleTable"></select></div>
         <div><label>Loại khách</label><select id="saleCust"></select></div>
       </div>
-      <h2 style="margin-top:12px">Thực đơn</h2><div class="menu" id="menuGrid"></div>
+      <h2 style="margin-top:12px">Thực đơn</h2><select id="menuPick"></select>
     </div>
     <div>
       <div class="inv"><b id="invNo">Hóa đơn mới</b><span id="invTime"></span></div>
@@ -263,7 +266,6 @@ async function enter() {
   $('saleTable').innerHTML = DATA.tables.map(t => `<option>${esc(t)}</option>`).join('');
   $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
   $('impItem').innerHTML = DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
-  $('menuGrid').innerHTML = DATA.menu.map(m => `<button data-id="${esc(m.id)}">${esc(m.name)}<small>${money(m.price)}đ</small></button>`).join('');
   $('repStaff').innerHTML = '<option value="">Tất cả nhân viên</option>' + DATA.staff.map(s => `<option value="${esc(s.username)}">${esc(s.name)}</option>`).join('');
   document.querySelectorAll('.adm').forEach(el => el.hidden = !admin);
   $('lFrom').textContent = admin ? 'Từ ngày' : 'Ngày';
@@ -284,8 +286,15 @@ $('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.tar
 let cart = {}, cur = {};   // cur = { id, openTime } khi đang làm tiếp một hóa đơn đã treo
 const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
 function resetOrder() { cart = {}; cur = {}; $('saleNote').value = ''; renderCart(); }
+function renderMenu() {
+  const left = DATA.menu.filter(m => !(m.id in cart));
+  $('menuPick').disabled = !left.length;
+  $('menuPick').innerHTML = `<option value="">${left.length ? '— Chọn món để thêm —' : 'Đã chọn hết các món'}</option>` +
+    left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} — ${money(m.price)}đ</option>`).join('');
+}
 function renderCart() {
   const ids = Object.keys(cart); let gross = 0;
+  renderMenu();
   $('invNo').textContent = cur.id ? 'Hóa đơn ' + cur.id : 'Hóa đơn mới (chưa có số)';
   $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
@@ -298,7 +307,7 @@ function renderCart() {
   $('tGross').textContent = money(gross); $('tDiscLabel').textContent = `Chiết khấu (${p}%)`;
   $('tDisc').textContent = '-' + money(d); $('tTotal').textContent = money(gross - d);
 }
-$('menuGrid').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; cart[b.dataset.id] = (cart[b.dataset.id] || 0) + 1; renderCart(); });
+$('menuPick').addEventListener('change', e => { const id = e.target.value; if (!id) return; cart[id] = 1; renderCart(); });
 $('cart').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   cart[b.dataset.id] += Number(b.dataset.d); if (cart[b.dataset.id] <= 0) delete cart[b.dataset.id]; renderCart();
@@ -339,16 +348,17 @@ async function loadHeld(silent) {
   try {
     const h = await api('listHeld'); $('heldTitle').textContent = `Hóa đơn đang treo (${h.length})`;
     $('heldList').innerHTML = h.length ? `<table><tr><th>Số HĐ</th><th>Bàn</th><th>Mở lúc</th><th>NV</th><th class="n">Món</th><th class="n">Tiền</th><th></th></tr>${h.map(x =>
-      `<tr><td>${esc(x.id)}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td>
-       <td><button class="btn sm" data-a="recall" data-id="${esc(x.id)}">Gọi lại</button> <button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
+      `<tr class="hrow" data-a="recall" data-id="${esc(x.id)}"><td>${esc(x.id)}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td>
+       <td><button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
       : '<div class="empty">Không có hóa đơn nào đang treo.</div>';
   } catch (e) { if (!silent) toast(e.message, true); }
 }
 $('btnHeldRefresh').onclick = e => run(e.target, () => loadHeld());
 setInterval(() => { if (!$('app').hidden && $('sale').classList.contains('on')) loadHeld(true); }, 30000);
 $('heldList').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return; const id = b.dataset.id;
-  if (b.dataset.a === 'recall') return run(b, async () => {
+  const b = e.target.closest('button') || e.target.closest('tr.hrow'); if (!b) return; const id = b.dataset.id;
+  if (b.dataset.a === 'recall') return b.dataset.busy ? null : run(b, async () => {
+    b.dataset.busy = 1; setTimeout(() => delete b.dataset.busy, 1500);
     if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
     const o = await api('getOrder', id);
     cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openTime };
