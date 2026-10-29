@@ -161,11 +161,21 @@
     <div><label>Nhà cung cấp</label><input id="impSupplier"></div>
     <div><label>Mặt hàng</label><select id="impItem"></select></div>
     <div><label>Số lượng</label><input id="impQty" type="number" min="0" inputmode="decimal"></div>
-    <div><label>Giá nhập</label><input id="impCost" type="number" min="0" inputmode="decimal"></div>
+    <div><label>Giá nhập (đ)</label><input id="impCost" type="text" inputmode="numeric" autocomplete="off" placeholder="VD: 1.500.000"></div>
   </div>
   <div class="row" style="margin-top:10px"><button class="btn ghost" id="btnImpAdd">Thêm dòng</button></div>
   <div id="impList" class="wrap"></div>
-  <div class="row" style="margin-top:12px"><button class="btn" id="btnImpSave">Lưu phiếu nhập</button></div>
+  <div class="row" style="margin-top:12px"><button class="btn" id="btnImpSave">Lưu phiếu nhập</button><button class="btn ghost" id="btnImpHist">Xem lại lịch sử nhập hàng</button></div>
+  <div id="impHist" hidden style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+    <h2>Lịch sử nhập hàng</h2>
+    <p class="empty" style="margin:0">Chọn ngày bắt đầu và kết thúc trong cùng 1 tháng.</p>
+    <div class="row" style="align-items:end">
+      <div><label>Từ ngày</label><input id="impFrom" type="date"></div>
+      <div><label>Đến ngày</label><input id="impTo" type="date"></div>
+      <button class="btn" id="btnImpHistGo" style="flex:0 0 auto">Xem</button>
+    </div>
+    <div id="impHistBody"></div>
+  </div>
 </section>
 
 <section class="tab" id="stock">
@@ -205,6 +215,18 @@
     </div>
     <div id="admInfo" class="empty"></div>
     <div id="admList" class="wrap"></div>
+  </details>
+
+  <details class="fold">
+    <summary>Lịch sử nhập hàng (tất cả)</summary>
+    <p class="empty" style="margin:0">Để trống ngày = xem tất cả phiếu nhập từ trước tới nay.</p>
+    <div class="row" style="align-items:end">
+      <div><label>Từ ngày</label><input id="aimpFrom" type="date"></div>
+      <div><label>Đến ngày</label><input id="aimpTo" type="date"></div>
+      <button class="btn" id="aimpGo" style="flex:0 0 auto">Xem</button>
+      <button class="btn ghost" id="aimpAll" style="flex:0 0 auto">Xem tất cả</button>
+    </div>
+    <div id="aimpBody"></div>
   </details>
 
   <details class="fold">
@@ -397,7 +419,8 @@ async function enter() {
   $('who').textContent = `${USER.name} · ${ROLE_NAME[USER.role]}`;
   fillTables();
   $('saleCust').innerHTML = DATA.customerTypes.map(c => `<option>${esc(c.type)}</option>`).join('');
-  $('impItem').innerHTML = DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+  fillImpItems();
+  { const t = new Date().toLocaleDateString('sv-SE'); $('impFrom').value = t.slice(0, 8) + '01'; $('impTo').value = t; limitImpTo(); }
   $('repStaff').innerHTML = '<option value="">Tất cả nhân viên</option>' + DATA.staff.map(s => `<option value="${esc(s.username)}">${esc(s.name)}</option>`).join('');
   $('admStaff').innerHTML = $('repStaff').innerHTML;
   { const t0 = new Date().toLocaleDateString('sv-SE'); $('admFrom').value = t0; $('admTo').value = t0; }
@@ -826,15 +849,59 @@ function renderImp() {
     ${impLines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${l.qty}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.qty * l.unitCost)}</td></tr>`).join('')}
     <tr><th colspan="3" class="n">Tổng</th><th class="n">${money(impLines.reduce((t, l) => t + l.qty * l.unitCost, 0))}</th></tr></table>` : '<div class="empty">Chưa có dòng nào.</div>';
 }
+const fillImpItems = () => { $('impItem').innerHTML = '<option value="">-- Chọn mặt hàng --</option>' + DATA.menu.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join(''); };
+/* Ô Giá nhập: tự thêm dấu chấm ngăn cách hàng nghìn khi gõ (1500000 -> 1.500.000) */
+const digits = v => String(v).replace(/\D/g, '');
+const groupDigits = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+$('impCost').addEventListener('input', e => {
+  const el = e.target, before = digits(el.value.slice(0, el.selectionStart || 0)).length, d = digits(el.value).replace(/^0+(?=\d)/, '');
+  el.value = groupDigits(d);
+  let pos = 0, seen = 0; while (pos < el.value.length && seen < before) { if (/\d/.test(el.value[pos])) seen++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (x) {}
+});
 $('btnImpAdd').onclick = () => {
-  const id = $('impItem').value, qty = Number($('impQty').value), unitCost = Number($('impCost').value);
-  if (!id || qty <= 0 || $('impCost').value === '' || unitCost < 0) return toast('Nhập đủ số lượng và giá nhập.', true);
+  const id = $('impItem').value, qty = Number($('impQty').value), costTxt = digits($('impCost').value), unitCost = Number(costTxt);
+  if (!id || !(qty > 0) || costTxt === '') return toast('Chọn mặt hàng, nhập số lượng và giá nhập.', true);
   impLines.push({ id, name: DATA.menu.find(m => String(m.id) === String(id)).name, qty, unitCost }); $('impQty').value = ''; $('impCost').value = ''; renderImp();
 };
 $('btnImpSave').onclick = e => run(e.target, async () => {
   const r = await api('saveImport', { supplier: $('impSupplier').value, items: impLines.map(({ id, qty, unitCost }) => ({ id, qty, unitCost })) });
   toast(`Đã lưu ${r.id} · ${money(r.total)}đ`); impLines = []; renderImp();
+  $('impSupplier').value = ''; $('impItem').value = ''; $('impQty').value = ''; $('impCost').value = '';   // làm mới để nhập phiếu mới
 });
+
+/* ---------- Lịch sử nhập hàng ---------- */
+function renderImpHist(el, r) {
+  if (!r.receipts.length) { el.innerHTML = '<div class="empty">Không có phiếu nhập nào trong khoảng này.</div>'; return; }
+  el.innerHTML = `<div class="kpis"><div class="kpi"><span>Số phiếu</span><b>${r.count}</b></div><div class="kpi"><span>Tổng tiền nhập</span><b>${money(r.total)}đ</b></div></div>` +
+    r.receipts.map(p => `<details class="fold"><summary>${esc(p.time)} · ${esc(p.id)} · <b>${money(p.total)}đ</b></summary>
+      <div class="empty" style="padding:4px 0">Nhà cung cấp: ${esc(p.supplier || '—')} · Nhân viên: ${esc(p.staff)}</div>
+      <div class="wrap"><table><tr><th>Mặt hàng</th><th class="n">SL</th><th class="n">Giá nhập</th><th class="n">Thành tiền</th></tr>
+      ${p.lines.map(l => `<tr><td>${esc(l.name)}</td><td class="n">${l.qty}</td><td class="n">${money(l.unitCost)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table></div></details>`).join('');
+}
+/* Ngày kết thúc chỉ chọn được trong cùng tháng với ngày bắt đầu (máy chủ cũng kiểm tra lại) */
+function limitImpTo() {
+  const f = $('impFrom').value; if (!f) return;
+  const [y, m] = f.split('-').map(Number), last = new Date(y, m, 0).getDate(), end = `${f.slice(0, 7)}-${String(last).padStart(2, '0')}`;
+  $('impTo').min = f; $('impTo').max = end;
+  if (!$('impTo').value || $('impTo').value < f || $('impTo').value > end) $('impTo').value = f > new Date().toLocaleDateString('sv-SE') ? f : (end < new Date().toLocaleDateString('sv-SE') ? end : new Date().toLocaleDateString('sv-SE'));
+}
+$('impFrom').addEventListener('change', limitImpTo);
+$('btnImpHist').onclick = () => { $('impHist').hidden = !$('impHist').hidden; if (!$('impHist').hidden) run($('btnImpHistGo'), loadImpHist); };
+async function loadImpHist() {
+  const f = $('impFrom').value, t = $('impTo').value;
+  if (!f || !t) throw new Error('Hãy chọn ngày bắt đầu và ngày kết thúc.');
+  if (f.slice(0, 7) !== t.slice(0, 7)) throw new Error('Chỉ xem được trong 1 tháng. Hãy chọn 2 ngày cùng tháng.');
+  renderImpHist($('impHistBody'), await api('listImports', f, t));
+}
+$('btnImpHistGo').onclick = e => run(e.target, loadImpHist);
+/* Quản trị: xem tất cả */
+async function loadAdmImp(all) {
+  if (all) { $('aimpFrom').value = ''; $('aimpTo').value = ''; }
+  renderImpHist($('aimpBody'), await api('listImports', $('aimpFrom').value, $('aimpTo').value));
+}
+$('aimpGo').onclick = e => run(e.target, () => loadAdmImp(false));
+$('aimpAll').onclick = e => run(e.target, () => loadAdmImp(true));
 
 /* ---------- Tồn kho / Kiểm kê ---------- */
 async function loadStock() {
