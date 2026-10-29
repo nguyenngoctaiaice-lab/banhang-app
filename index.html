@@ -178,7 +178,7 @@ const deviceName = () => (navigator.userAgent.match(/\(([^)]+)\)/) || [, 'Trình
 
 /* Gọi hàm trong Code.gs. withToken=false dùng cho các hàm đăng nhập. */
 // >>> DÁN LINK ỨNG DỤNG WEB CỦA GOOGLE SCRIPT (kết thúc bằng /exec) VÀO ĐÂY <<<
-const API_URL = 'DÁN_LINK_EXEC_VÀO_ĐÂY';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwrdidTvDTHRmt2byM-KvM4YanXO7TrGXDJxaIxPF4ow4q532z6UKxH_O9bcvk8LcWIzQ/exec';
 let TOKEN = '', USER = null, DATA = {};
 async function call(fn, args, withToken = true) {
   if (!/^https:\/\/script\.google\.com\//.test(API_URL)) throw new Error('Chưa cấu hình API_URL ở đầu phần <script> của index.html.');
