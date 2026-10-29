@@ -70,6 +70,7 @@
   .inv span { color:var(--muted); }
   #receipt { margin-top:14px; padding:16px 14px; border:1px solid var(--ink); border-radius:8px; max-width:380px; background:#fff; color:#111; font-size:15px; line-height:1.5; }
   #receipt .c { text-align:center; } #receipt .shop { font-weight:700; font-size:16px; } #receipt .ttl { font-weight:700; font-size:20px; margin-top:8px; }
+  #repSlot #receipt { margin-left:auto; margin-right:auto; }
   #receipt hr { border:0; border-top:1px dashed #555; margin:10px 0; }
   #receipt table { width:100%; border-collapse:collapse; }
   #receipt th, #receipt td { border:0; padding:3px 2px; white-space:normal; vertical-align:top; font-size:14px; }
@@ -141,7 +142,7 @@
       <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="btnClear">Bỏ thay đổi, làm hóa đơn mới</button><button class="btn ghost sm" id="btnFind">Tìm lại hóa đơn</button></div>
     </div>
   </div>
-  <div id="receipt" hidden></div>
+  <span id="rcHome" hidden></span><div id="receipt" hidden></div>
   <div id="findBox" hidden>
     <div class="dlg">
       <div class="row" style="align-items:center"><h2 style="margin:0;text-align:left">Tìm lại hóa đơn (chỉ xem / in)</h2><button class="btn ghost sm" id="findClose" style="flex:0 0 auto">Đóng</button></div>
@@ -568,8 +569,10 @@ async function loadServerSettings() {
 }
 const dtParse = s => { const m = String(s || '').match(/(\d{1,2}\/\d{1,2}\/\d{4})\D+(\d{1,2}:\d{2})/); return m ? { d: m[1], t: m[2] } : null; };
 
+const homeReceipt = () => $('rcHome').after($('receipt'));   // đưa hóa đơn về chỗ cũ (tab Bán hàng)
 function showReceipt(r, opt) {
   opt = opt || {};
+  if (!opt.slot) homeReceipt();
   const st = getSettings(), gross = Number(r.gross) || 0, disc = Number(r.discount) || 0, promoAmt = Number(r.promoAmt) || 0, pre = gross - disc - promoAmt;
   const tax = Math.round(pre * st.taxPct / 100), grand = pre + tax, hasTax = st.taxPct > 0;
   const o = dtParse(r.openTime), p = dtParse(r.payTime);
@@ -800,14 +803,15 @@ async function getPaidOrder(id) {
   let pr = paidCache.get(id); if (!pr) { pr = api('getOrder', id); paidCache.set(id, pr); }
   try { const o = await pr; if (!o) throw new Error('Không có dữ liệu hóa đơn.'); return o; } catch (e) { paidCache.delete(id); throw e; }
 }
-async function viewInvoice(inv) {
+async function viewInvoice(inv, inReport) {
   if (!inv) return;
   const o = await getPaidOrder(inv.id), c = calcReceipt(o.items, o.custType);
   if (o.gross != null && o.gross !== '') Object.assign(c, { gross: Number(o.gross), discount: Number(o.discount) || 0, discPct: Number(o.discPct) || 0,   // in lại đúng số tiền đã thanh toán
     promoName: o.promoName || '', promoPct: Number(o.promoPct) || 0, promoAmt: Number(o.promoAmt) || 0 });
-  if (!$('sale').classList.contains('on')) openTab('sale');   // hóa đơn hiện ở tab Bán hàng
+  if (inReport && $('repSlot')) $('repSlot').appendChild($('receipt'));   // xem ngay trong báo cáo
+  else if (!$('sale').classList.contains('on')) openTab('sale');   // còn lại hiện ở tab Bán hàng
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
-    openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true });
+    openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true, slot: !!(inReport && $('repSlot')) });
   $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
 }
 const viewOldInvoice = k => viewInvoice(findRows[k]);
@@ -1009,21 +1013,21 @@ async function runReport() {
   try {
     const admin = USER.role === 'ADMIN';
     const r = await api('getReport', $('repFrom').value, $('repTo').value, $('repStaff').value), t = r.total, nm = g => esc(r.names[g] || g);
-    $('repBody').innerHTML = `
+    homeReceipt(); $('repBody').innerHTML = `
       <div class="kpis">${kpi('Số hóa đơn', t.invoices)}${kpi('Doanh thu', money(t.revenue))}${kpi('Chiết khấu đã cho', money(t.discount))}${kpi('Khuyến mại đã cho', money(t.promo))}
         ${kpi('Giá vốn hàng bán', money(t.cogs))}${kpi('Lãi gộp', sign(t.gross))}
         ${admin ? kpi('Chênh lệch kiểm kê', sign(t.diff)) + kpi('Lãi/lỗ sau kiểm kê', sign(t.net)) + kpi('Biên lãi', t.margin + '%') + kpi('Tiền nhập hàng', money(t.importCost)) : ''}</div>
       ${admin ? `<details class="fold"><summary>Theo nhân viên</summary><div class="wrap">${r.byStaff.length ? `<table>${statHead('Nhân viên')}${r.byStaff.map(s => statRow(nm(s.key), s)).join('')}</table>` : '<div class="empty">Không có dữ liệu.</div>'}</div></details>` : ''}
       ${admin && r.byDay.length > 1 ? `<details class="fold"><summary>Theo ngày</summary><div class="wrap"><table>${statHead('Ngày')}${r.byDay.map(d => statRow(esc(d.key.split('-').reverse().join('/')), d)).join('')}</table></div></details>` : ''}
       <details class="fold"><summary>Món bán chạy</summary><div class="wrap">${r.topItems.length ? `<table><tr><th>Món</th><th class="n">SL</th><th class="n">Doanh thu</th></tr>${r.topItems.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.amount)}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có bán hàng.</div>'}</div></details>
-      <details class="fold"><summary>Hóa đơn</summary>${r.invoices.length ? `<div class="empty" style="margin:0;padding:0 0 6px;text-align:center">Bấm vào một dòng để xem chi tiết hóa đơn.</div><div class="wrap"><table class="zebra"><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th>${admin ? '<th>Nhân viên</th>' : ''}<th class="n">Tiền</th></tr>${r.invoices.map((i, k) => `<tr class="hrow" data-k="${k}"><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td>${admin ? `<td>${nm(i.staff)}</td>` : ''}<td class="n">${money(i.total)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Không có hóa đơn.</div>'}</details>`;
+      <details class="fold"><summary>Hóa đơn</summary><div id="repSlot"></div>${r.invoices.length ? `<div class="empty" style="margin:0;padding:0 0 6px;text-align:center">Bấm vào một dòng để xem chi tiết hóa đơn.</div><div class="wrap"><table class="zebra"><tr><th>Ngày</th><th>Giờ</th><th>Mã</th><th>Bàn</th>${admin ? '<th>Nhân viên</th>' : ''}<th class="n">Tiền</th></tr>${r.invoices.map((i, k) => `<tr class="hrow" data-k="${k}"><td>${esc(i.day)}</td><td>${esc(i.time)}</td><td>${esc(i.id)}</td><td>${esc(i.table)}</td>${admin ? `<td>${nm(i.staff)}</td>` : ''}<td class="n">${money(i.total)}</td></tr>`).join('')}</table></div>` : '<div class="empty">Không có hóa đơn.</div>'}</details>`;
     repInv = r.invoices;
   } catch (e) { toast(e.message, true); }
 }
 $('btnRep').onclick = e => run(e.target, runReport);
 $('repBody').addEventListener('click', e => {   // bấm dòng hóa đơn -> mở chi tiết
   const tr = e.target.closest('tr.hrow'); if (!tr || tr.dataset.busy) return;
-  tr.dataset.busy = 1; viewInvoice(repInv[+tr.dataset.k]).catch(err => toast(err.message, true)).finally(() => delete tr.dataset.busy);
+  tr.dataset.busy = 1; viewInvoice(repInv[+tr.dataset.k], true).catch(err => toast(err.message, true)).finally(() => delete tr.dataset.busy);
 });
 
 /* ---------- Quản trị: nhân viên + thiết bị ---------- */
