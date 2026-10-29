@@ -436,6 +436,7 @@ const TABS = [
   { id: 'admin', label: 'Quản trị', roles: [] },
 ];
 const ROLE_NAME = { ADMIN: 'Admin', BANHANG: 'Bán hàng', BAOCAO: 'Báo cáo', NHAPHANG: 'Nhập hàng', TONKHO: 'Tồn kho', KIEMKE: 'Kiểm kê' };
+const PROTECTED_USERS = ['admin'];   // tài khoản chủ quán: không có nút Xóa
 const roleText = rs => (rs || []).map(r => ROLE_NAME[r] || r).join(', ');
 
 async function enter() {
@@ -1245,7 +1246,7 @@ async function loadAdmin() {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
     $('userList').innerHTML = `<table><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th></th></tr>${users.map(u =>
       `<tr><td>${esc(u.username)}</td><td>${esc(u.name)}</td><td>${esc(roleText(u.roles)) || '<span class="neg">Chưa có</span>'}</td><td>${u.active ? 'Hoạt động' : '<span class="neg">Khóa</span>'}</td>
-       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}">Sửa</button></td></tr>`).join('')}</table>`;
+       <td><button class="btn ghost sm" data-edit="${esc(u.username)}" data-n="${esc(u.name)}" data-r="${esc(u.roles.join(','))}" data-a="${u.active ? 1 : 0}">Sửa</button>${u.username === USER.username || PROTECTED_USERS.includes(u.username) ? '' : ` <button class="btn ghost sm" data-del="${esc(u.username)}">Xóa</button>`}</td></tr>`).join('')}</table>`;
     $('devList').innerHTML = devs.length ? `<table><tr><th>Tên đăng nhập</th><th>Mã thiết bị</th><th>Thiết bị</th><th>Yêu cầu lúc</th><th>Trạng thái</th><th></th></tr>${devs.map(d =>
       `<tr><td>${esc(d.username)}</td><td><b>${esc(d.code)}</b></td><td>${esc(d.deviceName)}</td><td>${esc(d.requestedAt)}</td><td class="${d.status === 'PENDING' ? 'low' : ''}">${ST[d.status] || esc(d.status)}${d.deviceId === deviceId() ? '<br><small>Thiết bị đang dùng</small>' : ''}</td><td>
         ${d.status !== 'APPROVED' ? `<button class="btn sm" data-s="APPROVED" data-g="${esc(d.username)}" data-d="${esc(d.deviceId)}">Duyệt</button>` : ''}
@@ -1264,7 +1265,9 @@ function syncAdminBox() {   // Admin = toàn quyền: chọn Admin thì các vai
 const getRoles = () => { const a = roleBoxes().filter(c => c.checked).map(c => c.value); return a.includes('ADMIN') ? ['ADMIN'] : a; };
 $('uRoles').addEventListener('change', syncAdminBox);
 $('userList').addEventListener('click', e => {
-  const d = e.target.dataset; if (!d.edit) return;
+  const d = e.target.dataset;
+  if (d.del) { if (confirm('Xóa tài khoản "' + d.del + '"? Các thiết bị của tài khoản này cũng bị xóa. Hóa đơn và phiếu cũ vẫn được giữ.')) run(e.target, async () => { await api('adminDeleteUser', d.del); toast('Đã xóa nhân viên ' + d.del); loadAdmin(); }); return; }
+  if (!d.edit) return;
   $('uGit').value = d.edit; $('uName').value = d.n; setRoles(d.r.split(',')); $('uActive').value = d.a;
 });
 $('devList').addEventListener('click', e => {
