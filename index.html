@@ -24,6 +24,10 @@
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
+  .rstar { color:#f5a623; letter-spacing:1px; white-space:nowrap; font-weight:700; } .rstar i { font-style:normal; color:#cfcfcf; }
+  .gstt { font-size:12px; font-weight:700; padding:1px 7px; border-radius:10px; white-space:nowrap; display:inline-block; }
+  .gstt.ok { background:#dff5e4; color:#1b7a34; } .gstt.no { background:#fdeaea; color:#b3261e; } .gstt.off { background:#eee; color:#666; }
+  #gDoneBox .gdone { background:#e6f7ea; border:1px solid #9ad3a8; border-radius:10px; padding:10px 12px; margin-bottom:10px; text-align:center; color:#14602b; }
   /* Tab Bán hàng: tách thành các khối riêng, cách nhau, bo góc */
   section.tab#sale { background:transparent; border:0; padding:0; }
   #sale .saleCard { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
@@ -1826,7 +1830,7 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
 const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
-const G = { gps: null, infoOpen: undefined, sentOpen: {}, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {} };
+const G = { gps: null, infoOpen: undefined, sentOpen: {}, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {}, rate: null, doneSeen: {} };
 const gcall = (fn, ...a) => call(fn, a, false);
 const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
 const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
@@ -1871,7 +1875,7 @@ function gInfoCheck() {
 }
 function gRender() {
   if (!G.on) { $('gBody').innerHTML = '<div class="empty" style="text-align:center">Quán tạm ngưng nhận đặt món qua điện thoại. Vui lòng gọi nhân viên.</div>'; return; }
-  $('gBody').innerHTML = `${G.editId ? `<div class="gcard" style="background:#fff4d6">✏️ <b>Đang sửa đơn ${esc(G.editId)}</b> (${esc(G.table)})<br><small>Mỗi ngày chỉ được sửa 1 lần. Chọn lại món rồi bấm “Cập nhật đơn”.</small><div style="margin-top:6px"><button class="btn ghost sm" data-g="edit-cancel">Hủy sửa</button></div></div>` : ''}<details class="gf" id="gInfo" ${gInfoOpen() ? 'open' : ''}><summary>Thông tin khách hàng<div class="grecap" id="gRecap">${gRecapHtml()}</div></summary>
+  $('gBody').innerHTML = `<div id="gDoneBox"></div>${G.editId ? `<div class="gcard" style="background:#fff4d6">✏️ <b>Đang sửa đơn ${esc(G.editId)}</b> (${esc(G.table)})<br><small>Mỗi ngày chỉ được sửa 1 lần. Chọn lại món rồi bấm “Cập nhật đơn”.</small><div style="margin-top:6px"><button class="btn ghost sm" data-g="edit-cancel">Hủy sửa</button></div></div>` : ''}<details class="gf" id="gInfo" ${gInfoOpen() ? 'open' : ''}><summary>Thông tin khách hàng<div class="grecap" id="gRecap">${gRecapHtml()}</div></summary>
     <div class="row one"><div style="flex:1.25"><label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}"></div>
       <div><label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}"></div></div>
     <label>Địa chỉ *</label>
@@ -1924,6 +1928,16 @@ function gGps() {
     setMsg(err.code === 1 ? 'Bạn chưa cho phép truy cập vị trí. Hãy bật GPS và cấp quyền Vị trí cho trình duyệt (trong Cài đặt) rồi bấm lại. Chưa có vị trí thì chưa gửi được đơn.' : 'Không lấy được vị trí (hãy bật GPS, ra chỗ thoáng rồi bấm lại). Chưa có vị trí thì chưa gửi được đơn.', 'err'); btn.disabled = false;
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
 }
+const G_STARS = ['Rất tệ', 'Tệ', 'Bình thường', 'Tốt', 'Tuyệt vời'];
+const gStars = n => `<span class="rstar">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`;
+function gRateDialog() {
+  const r = G.rate; if (!r) return;
+  gOverlay(`<h2 style="margin:0 0 6px;text-align:center">Đánh giá dịch vụ</h2><div style="text-align:center">Quý khách hài lòng về quán chứ?</div>
+    <div style="text-align:center;font-size:42px;line-height:1.3;margin:6px 0">${[1, 2, 3, 4, 5].map(i => `<span data-g="star" data-n="${i}" style="cursor:pointer;color:${i <= r.n ? '#f5a623' : '#cfcfcf'}">★</span>`).join('')}</div>
+    <div style="text-align:center;font-weight:700;min-height:22px">${r.n ? G_STARS[r.n - 1] : ''}</div>
+    <textarea id="gRvText" maxlength="200" rows="3" placeholder="Nhận xét thêm (không bắt buộc)" style="width:100%;margin-top:8px;font-size:16px">${esc(r.t || '')}</textarea>
+    <button class="btn" data-g="rate-send" style="width:100%;margin-top:10px">Gửi đánh giá</button><button class="btn ghost sm" data-g="close" style="width:100%;margin-top:8px">Để sau</button>`);
+}
 const G_ST = { CHO: '⏳ Chờ nhân viên xác nhận', DA_DUYET: '✅ Đã xác nhận, món đang được chuẩn bị', TU_CHOI: '❌ Nhân viên từ chối, vui lòng gọi nhân viên' };
 function gPayTxt(s) {
   if (s.method === 'cash') return '💵 Thanh toán tiền mặt tại quầy';
@@ -1934,11 +1948,14 @@ async function gPoll() {
   const l = gSentList(), box = $('gSent'); if (!l.length || !box) return;
   try {
     const st = await gcall('guestStatus', l.map(x => x.id)); box.className = ''; G.st = st;
+    const dn = $('gDoneBox'), fresh = l.filter(x => st[x.id] && st[x.id].done && !st[x.id].rating);
+    if (dn) dn.innerHTML = fresh.map(x => `<div class="gdone">🎉 <b>Đơn ${esc(x.t.split(' · ')[0])} (${esc(x.id)}) đã hoàn thành, thanh toán thành công!</b><br>Cảm ơn quý khách. Hãy dành vài giây đánh giá dịch vụ nhé.<div style="margin-top:6px"><button class="btn sm" data-g="rate" data-id="${esc(x.id)}">⭐ Đánh giá dịch vụ</button></div></div>`).join('');
+    l.forEach(x => { const s = st[x.id]; if (s && s.done && !G.doneSeen[x.id]) { G.doneSeen[x.id] = 1; if (!s.rating) toast('Đơn của bạn đã hoàn thành. Cảm ơn quý khách!'); } });
     box.innerHTML = l.map((x, i) => { const s = st[x.id] || {}, m = s.method || x.m, pay = s.pay || '';
-      const need = m === 'bank' && pay === 'CHUA' && s.st !== 'TU_CHOI';
-      const canEdit = (s.st === 'CHO' || s.st === 'DA_DUYET') && pay !== 'KHACH_BAO' && pay !== 'DA_NHAN' && !s.ed;
+      const need = m === 'bank' && pay === 'CHUA' && s.st !== 'TU_CHOI' && !s.done;
+      const canEdit = (s.st === 'CHO' || s.st === 'DA_DUYET') && pay !== 'KHACH_BAO' && pay !== 'DA_NHAN' && !s.ed && !s.done;
       const op = G.sentOpen[x.id] !== undefined ? G.sentOpen[x.id] : i === 0;   // mặc định chỉ đơn gần nhất mở
-      return `<details class="gcard gs" data-sid="${esc(x.id)}" ${op ? 'open' : ''}><summary><b>${esc(x.t)}</b> <small>${esc(x.id)}</small></summary><div>${G_ST[s.st] || '—'}</div><div>${gPayTxt({ method: m, pay: pay })}</div>${s.ed ? '<div><small>✏️ Hôm nay bạn đã sửa đơn này (tối đa 1 lần/ngày).</small></div>' : ''}
+      return `<details class="gcard gs" data-sid="${esc(x.id)}" ${op ? 'open' : ''}><summary><b>${esc(x.t)}</b> <small>${esc(x.id)}</small></summary><div>${s.done ? '🎉 <b>Đơn đã hoàn thành – thanh toán thành công</b>' : (G_ST[s.st] || '—')}</div><div>${gPayTxt({ method: m, pay: pay })}</div>${s.done ? (s.rating ? `<div>Đánh giá của bạn: ${gStars(s.rating)}${s.review ? ` <small>“${esc(s.review)}”</small>` : ''}</div>` : `<div style="margin-top:6px"><button class="btn sm" data-g="rate" data-id="${esc(x.id)}">⭐ Đánh giá dịch vụ</button></div>`) : ''}${s.ed ? '<div><small>✏️ Hôm nay bạn đã sửa đơn này (tối đa 1 lần/ngày).</small></div>' : ''}
         ${need ? `<div class="g2"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}${canEdit ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="edit" data-id="${esc(x.id)}">✏️ Sửa món</button></div>` : ''}</details>`; }).join('');
   } catch (e) {}
 }
@@ -2030,6 +2047,10 @@ document.addEventListener('click', e => {
     G.editId = id; G.table = s.table; G.note = s.note || ''; G.cart = {}; s.items.forEach(i => G.cart[i.id] = i.qty); gRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (g === 'edit-cancel') { G.editId = ''; G.cart = {}; G.note = ''; G.table = ''; gRender(); gSyncTables(); return; }
   if (g === 'gps') return gGps();
+  if (g === 'rate') { G.rate = { id: id, n: 0, t: '' }; return gRateDialog(); }
+  if (g === 'star') { const t = $('gRvText'); if (t && G.rate) G.rate.t = t.value; if (G.rate) G.rate.n = Number(b.dataset.n); return gRateDialog(); }
+  if (g === 'rate-send') { const t = $('gRvText'); if (t && G.rate) G.rate.t = t.value; if (!G.rate || !G.rate.n) return toast('Hãy chọn số sao.', true);
+    return run(b, async () => { await gcall('guestRate', G.rate.id, gCid(), G.rate.n, G.rate.t); gClose(); G.rate = null; toast('Cảm ơn bạn đã đánh giá! 💚'); gPoll(); }); }
   if (g === 'close') return gClose();
   if (g === 'm-bank' || g === 'm-cash') { G.method = g === 'm-bank' ? 'bank' : 'cash'; return gPayDialog(); }
   if (g === 'send-paid') return gSend(b, true);
@@ -2128,11 +2149,11 @@ async function loadGuest(silent) {
       // GPS: trích tọa độ trong ngoặc (nếu có)
       const gpsMatch = (o.guestAddr || '').match(/\((-?\d+\.\d+,\s*-?\d+\.\d+)\)\s*$/);
       const gpsCoords = gpsMatch ? gpsMatch[1] : '';
-      return `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
-      <div><span class="gtag">📱 KHÁCH ĐẶT</span>${o.edited ? ' <span class="gtag" style="background:#e67e00">✏️ Khách đã sửa</span>' : ''} <b>${esc(dispName)}</b> · <span style="white-space:nowrap">${esc(dispPhone)} <a href="tel:${esc(dispPhone)}" style="text-decoration:none" title="Gọi ngay">📞</a> <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(dispPhone)}').then(()=>toast('Đã sao chép SĐT')).catch(()=>{})" title="Sao chép số">📋</button></span><br>🏠 ${esc(o.guestAddr)}${gpsCoords ? ` <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(gpsCoords)}').then(()=>toast('Đã sao chép tọa độ')).catch(()=>{})" title="Sao chép tọa độ">📋</button> <a class="btn ghost sm" style="padding:1px 6px;font-size:12px;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(gpsCoords.replace(/\s/g, ''))}">🗺️ Bản đồ</a>` : ''}</div>
+      return `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}${o.status === 'DA_DUYET' && o.invoiceId ? ` · ${o.voided ? '<span class="gstt off">🚫 Hóa đơn đã hủy</span>' : `<span class="gstt ${o.printed ? 'ok' : 'no'}">🖨️ ${o.printed ? 'Đã in hóa đơn' : 'Chưa in hóa đơn'}</span> <span class="gstt ${o.paid ? 'ok' : 'no'}">💰 ${o.paid ? 'Thanh toán thành công' : 'Chưa thanh toán'}</span>`}` : ''}
+      <div><span class="gtag">📱 KHÁCH ĐẶT</span>${o.edited ? ' <span class="gtag" style="background:#e67e00">✏️ Khách đã sửa</span>' : ''} <b>${esc(dispName)}</b> · <span style="white-space:nowrap">${esc(dispPhone)} <a href="tel:${esc(dispPhone)}" style="text-decoration:none" title="Gọi ngay">📞</a> <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(dispPhone)}').then(()=>toast('Đã sao chép SĐT')).catch(()=>{})" title="Sao chép số">📋</button></span>${o.rating ? ` <span class="rstar" title="${esc(o.review || 'Khách đánh giá ' + o.rating + ' sao')}">${'★'.repeat(o.rating)}<i>${'★'.repeat(5 - o.rating)}</i> ${o.rating}/5</span>` : ''}<br>🏠 ${esc(o.guestAddr)}${gpsCoords ? ` <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(gpsCoords)}').then(()=>toast('Đã sao chép tọa độ')).catch(()=>{})" title="Sao chép tọa độ">📋</button> <a class="btn ghost sm" style="padding:1px 6px;font-size:12px;text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${encodeURIComponent(gpsCoords.replace(/\s/g, ''))}">🗺️ Bản đồ</a>` : ''}</div>
       <div style="margin:4px 0">${payTag({ src: 'KHACH_DAT', payMethod: o.payMethod, payState: o.payState })} · Tổng ước tính: <b>${money(o.amount)}đ</b></div>
       ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>x ${i.qty}</span><span class="gp" data-p="${gPrice(i.id)}">${money(gPrice(i.id) * i.qty)}đ</span></div>`).join('')}
-      ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}
+      ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}${o.review ? `<div class="empty">💬 Khách nhận xét: ${esc(o.review)}</div>` : ''}
       <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`;
     }).join('')
       : '<div class="empty">Chưa có yêu cầu nào.</div>';
