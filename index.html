@@ -24,6 +24,7 @@
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
+  #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
   h2 { font-size:16px; margin:0 0 10px; }
   label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
   select, input { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
@@ -148,6 +149,9 @@
 </head>
 <body>
 
+<!-- KHÁCH ĐẶT MÓN -->
+<div id="guest" hidden><h2 id="gShop" style="text-align:center">Đặt món</h2><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
+
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
   <h2 id="loginTitle">PHẦN MỀM QUẢN LÝ BÁN HÀNG</h2>
@@ -208,6 +212,9 @@
   </div>
   <div class="row" style="align-items:center;margin-top:18px"><h2 id="heldTitle">Hóa đơn đang treo</h2><button class="btn ghost sm" id="btnHeldRefresh" style="flex:0 0 auto">Làm mới</button></div>
   <div id="heldList" class="wrap"></div>
+  <div class="row" style="align-items:center;margin-top:18px"><h2 id="guestTitle">Khách đặt món</h2><button class="btn ghost sm" id="btnGuestRefresh" style="flex:0 0 auto">Làm mới</button></div>
+  <div class="row adm" hidden style="margin-bottom:6px"><button class="btn ghost sm" id="btnGuestToggle"></button><button class="btn ghost sm" id="btnGuestAll">Xem cả đơn đã xử lý</button><button class="btn ghost sm" id="btnGuestQr">In mã QR các bàn</button></div>
+  <div id="guestList" class="wrap"></div>
 </section>
 
 <section class="tab" id="import">
@@ -567,7 +574,7 @@ function openTab(t) {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === t));
   if (t === 'sale') { loadServerSettings(); refreshPromos(); }
-  ({ sale: loadHeld, stock: loadStock, count: loadCount, admin: loadAdmin, report: runReport }[t] || (() => {}))();
+  ({ sale: () => { loadHeld(); loadGuest(); }, stock: loadStock, count: loadCount, admin: loadAdmin, report: runReport }[t] || (() => {}))();
 }
 $('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.target.dataset.t); });
 
@@ -1749,8 +1756,100 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 });
 
 /* ---------- Khởi động: thử khôi phục phiên cũ ---------- */
+
+/* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
+const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
+const G = { menu: [], tables: [], table: '', cart: {}, note: '', on: true };
+const gcall = (fn, ...a) => call(fn, a, false);
+const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
+const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
+const gTotals = () => G.menu.reduce((a, m) => { const q = G.cart[m.id] || 0; a.t += q * m.price; a.n += q; return a; }, { t: 0, n: 0 });
+function gUpdate() { const x = gTotals(); G.menu.forEach(m => { const e = $('gq_' + m.id); if (e) e.textContent = G.cart[m.id] || 0; }); $('gTot').textContent = money(x.t); $('gSend').disabled = !x.n; }
+function gRender() {
+  if (!G.on) { $('gBody').innerHTML = '<div class="empty" style="text-align:center">Quán tạm ngưng nhận đặt món qua điện thoại. Vui lòng gọi nhân viên.</div>'; return; }
+  $('gBody').innerHTML = `<label>Bàn</label><select id="gTable"><option value="">-- Chọn bàn --</option>${G.tables.map(t => `<option ${t === G.table ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <h2>Thực đơn</h2>${G.menu.map(m => `<div class="gl"><span>${esc(m.name)}<br><small>${money(m.price)}đ</small></span><span><button class="btn ghost sm" data-g="-" data-id="${esc(m.id)}">−</button> <b id="gq_${esc(m.id)}" style="display:inline-block;min-width:22px;text-align:center">${G.cart[m.id] || 0}</b> <button class="btn sm" data-g="+" data-id="${esc(m.id)}">+</button></span></div>`).join('')}
+    <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
+    <div class="tot big"><span>Tạm tính</span><span id="gTot">0</span></div>
+    <button class="btn" id="gSend" style="width:100%;margin-top:10px" disabled>Gửi đặt món</button>
+    <h2 style="margin-top:16px">Đơn đã gửi</h2><div id="gSent" class="empty">Chưa có.</div>`;
+  gUpdate(); gPoll();
+}
+const G_ST = { CHO: '⏳ Chờ nhân viên xác nhận', DA_DUYET: '✅ Đã xác nhận, món đang được chuẩn bị', TU_CHOI: '❌ Nhân viên từ chối, vui lòng gọi nhân viên' };
+async function gPoll() {
+  const l = gSentList(), box = $('gSent'); if (!l.length || !box) return;
+  try { const st = await gcall('guestStatus', l.map(x => x.id)); box.className = ''; box.innerHTML = l.map(x => `<div class="gl"><span>${esc(x.t)}<br><small>${esc(x.id)}</small></span><span style="text-align:right">${G_ST[st[x.id]] || '—'}</span></div>`).join(''); } catch (e) {}
+}
+async function guestInit() {
+  $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false;
+  try {
+    const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled;
+    $('gShop').textContent = d.shop ? d.shop + ' – Đặt món' : 'Đặt món';
+    const b = GQ.get('ban'); if (b && d.tables.includes(b)) G.table = b;
+    gRender(); setInterval(gPoll, 8000);
+  } catch (e) { $('gMsg').textContent = e.message; }
+}
+$('guest').addEventListener('click', e => {
+  const b = e.target.closest('[data-g]');
+  if (b) { const id = b.dataset.id, q = (G.cart[id] || 0) + (b.dataset.g === '+' ? 1 : -1); G.cart[id] = Math.max(0, Math.min(50, q)); if (!G.cart[id]) delete G.cart[id]; return gUpdate(); }
+  if (e.target.id === 'gSend') run(e.target, async () => {
+    if (!G.table) throw new Error('Hãy chọn bàn trước khi gửi.');
+    const items = Object.keys(G.cart).map(id => ({ id, qty: G.cart[id] })), n = gTotals().n;
+    const r = await gcall('guestSubmit', G.table, items, G.note, gCid());
+    const l = gSentList(); l.unshift({ id: r.id, t: `${G.table} · ${n} món` }); store.set('bh_gsent', JSON.stringify(l.slice(0, 8)));
+    G.cart = {}; G.note = ''; gRender(); toast('Đã gửi! Vui lòng chờ nhân viên xác nhận.');
+  });
+});
+$('guest').addEventListener('change', e => { if (e.target.id === 'gTable') G.table = e.target.value; });
+$('guest').addEventListener('input', e => { if (e.target.id === 'gNote') G.note = e.target.value; });
+
+/* ---------- Thu ngân: duyệt / từ chối đơn khách đặt (admin: bật/tắt, sửa, xóa, in QR bàn) ---------- */
+let guestAll = false, guestSeen = -1, guestOn = true;
+function beep() { try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(); o.connect(c.destination); o.frequency.value = 880; o.start(); setTimeout(() => { o.stop(); c.close(); }, 350); } catch (e) {} }
+const GS_TXT = { CHO: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Đã từ chối' };
+async function loadGuest(silent) {
+  if (!$('guestList') || (silent && $('guestList').contains(document.activeElement))) return;
+  try {
+    const r = await api('listGuestOrders', guestAll), admin = USER && USER.role === 'ADMIN'; guestOn = r.enabled;
+    const pend = r.orders.filter(o => o.status === 'CHO').length;
+    $('guestTitle').textContent = `Khách đặt món (${pend} chờ duyệt)`;
+    if (guestSeen >= 0 && pend > guestSeen) { beep(); toast('Có đơn khách đặt mới!'); }
+    guestSeen = pend;
+    $('btnGuestToggle').textContent = guestOn ? 'Nhận đơn khách: BẬT (bấm để tắt)' : 'Nhận đơn khách: TẮT (bấm để bật)';
+    $('btnGuestAll').textContent = guestAll ? 'Chỉ xem đơn chờ duyệt' : 'Xem cả đơn đã xử lý';
+    $('guestList').innerHTML = r.orders.length ? r.orders.map(o => `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
+      ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>${o.status === 'CHO' ? `x <input type="number" min="0" max="50" class="gq" data-i="${esc(i.id)}" value="${i.qty}" style="width:64px">` : 'x ' + i.qty}</span></div>`).join('')}
+      ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}
+      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`).join('')
+      : '<div class="empty">Chưa có yêu cầu nào.</div>';
+  } catch (e) { if (!silent) toast(e.message, true); }
+}
+$('guestList').addEventListener('click', e => {
+  const a = e.target.dataset.a; if (!/^g(Ok|No|Del)$/.test(a || '')) return;
+  const card = e.target.closest('.gcard'), id = card.dataset.id;
+  if (a === 'gDel' && !confirm('Xóa yêu cầu này?')) return;
+  run(e.target, async () => {
+    if (a === 'gOk') { const items = [...card.querySelectorAll('.gq')].map(i => ({ id: i.dataset.i, qty: Number(i.value) || 0 })).filter(i => i.qty > 0); await api('approveGuestOrder', id, items); toast('Đã duyệt, món đã vào hóa đơn treo.'); loadHeld(); }
+    else if (a === 'gNo') await api('rejectGuestOrder', id);
+    else await api('deleteGuestOrder', id);
+    loadGuest();
+  });
+});
+$('btnGuestRefresh').onclick = () => loadGuest();
+$('btnGuestAll').onclick = () => { guestAll = !guestAll; loadGuest(); };
+$('btnGuestToggle').onclick = e => run(e.target, async () => { await api('setGuestEnabled', !guestOn); await loadGuest(); });
+$('btnGuestQr').onclick = e => run(e.target, async () => {
+  const base = location.href.split('#')[0].split('?')[0], list = [['Chọn bàn trên điện thoại', base + '?dat=1'], ...DATA.tables.map(t => [t, base + '?ban=' + encodeURIComponent(t)])];
+  const imgs = await Promise.all(list.map(x => makeQr(x[1]))), w = window.open('', '_blank');
+  if (!w) throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép cửa sổ bật lên.');
+  w.document.write(`<title>QR bàn</title><style>body{font-family:sans-serif;display:flex;flex-wrap:wrap;gap:12px}.q{width:220px;border:1px dashed #888;text-align:center;padding:10px;break-inside:avoid}.q img{width:180px}.q b{font-size:22px;display:block}</style>${list.map((x, i) => `<div class="q"><b>${esc(x[0])}</b><img src="${imgs[i]}"><div>Quét mã để gọi món</div></div>`).join('')}`);
+  w.document.close(); setTimeout(() => w.print(), 500);
+});
+setInterval(() => { if (USER && !$('app').hidden && $('sale').classList.contains('on')) loadGuest(true); }, 12000);
+
 (async function boot() {
   markNative();
+  if (isGuestMode()) return guestInit();
   applyTheme(getSettings().theme, getSettings().fx);
   TOKEN = store.get('bh_token');
   if (TOKEN) { try { await enter(); return; } catch (e) {} }
