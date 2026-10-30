@@ -28,6 +28,11 @@
   .gcard .gl { display:flex; justify-content:flex-start; align-items:center; gap:12px; padding:6px 0; } .gcard .gl > span:first-child { flex:0 1 auto; min-width:0; } .gcard .gl > span:nth-child(2) { display:flex; align-items:center; gap:6px; white-space:nowrap; } .gcard .gl .gp { white-space:nowrap; font-weight:700; margin-left:4px; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
   #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--accent); }
+  #guest .gload { text-align:center; margin:18px 0 10px; } #guest .gbig { font-weight:800; font-size:clamp(18px,7.6vw,40px); line-height:1.2; white-space:nowrap; color:var(--accent); } #guest .gwait { font-size:13px; font-style:italic; color:var(--muted); margin-top:6px; }
+  #gMsg:empty { display:none; } #gMsg { margin:0; padding:4px 0; }
+  #guest details.gf > summary { cursor:pointer; user-select:none; font-size:16px; font-weight:700; text-align:center; padding:2px 0 6px; } #guest .grecap { font-weight:400; font-size:14px; color:var(--muted); margin-top:2px; } #guest details.gf[open] .grecap, #guest .grecap:empty { display:none; }
+  #guest details.gs > summary { cursor:pointer; user-select:none; padding:2px 0; } #guest details.gs[open] > summary { margin-bottom:4px; }
+  #guest .g2 { display:flex; gap:8px; margin-top:6px; } #guest .g2 .btn { flex:1 1 0; min-width:0; padding:9px 4px; font-size:13.5px; line-height:1.2; }
   #guest .gseg { display:flex; gap:8px; margin:4px 0 6px; } #guest .gseg button { flex:1; padding:8px 6px; font-size:14px; }
   #guest .gps { font-size:13px; color:var(--muted); margin-top:4px; } #guest .gps.err { color:var(--warn); } #guest .gps.ok { color:var(--ok); }
   #gTable option:disabled { color:#999; }
@@ -160,7 +165,7 @@
 <body>
 
 <!-- KHÁCH ĐẶT MÓN -->
-<div id="guest" hidden><div class="ghead"><div class="shop" id="gShop">Đặt món</div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐẶT MÓN TẠI BÀN</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
+<div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig">ĐẶT ĐỒ ĂN ONLINE</div><div class="gwait" id="gWait">Vui lòng đợi trong ít phút...</div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
 
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
@@ -1798,7 +1803,7 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
 const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
-const G = { gps: null, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {} };
+const G = { gps: null, infoOpen: undefined, sentOpen: {}, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {} };
 const gcall = (fn, ...a) => call(fn, a, false);
 const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
 const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
@@ -1831,15 +1836,26 @@ function gTableOpts() {
   if (G.editId) return `<option value="${esc(G.table)}" selected>${esc(G.table)}</option>`;
   return '<option value="">-- Chọn bàn --</option>' + G.tables.map(t => { const b = G.busy[t]; return `<option value="${esc(t)}" ${t === G.table ? 'selected' : ''} ${b ? 'disabled' : ''}>${esc(t)}${b ? ' (' + b + ')' : ''}</option>`; }).join('');
 }
+const gInfoOk = () => G.name.trim().length >= 2 && gPhoneOk(G.phone) && G.addr.trim().length >= 5 && !!G.gps;
+const gInfoOpen = () => G.infoOpen === undefined ? !gInfoOk() : G.infoOpen;
+const gRecapHtml = () => gInfoOk() ? `👤 ${esc(G.name.trim())} · 📞 ${esc(G.phone.trim())}<br>📍 ${esc(G.addr.trim())}<br><small>(bấm để sửa)</small>` : '';
+/* Điền đủ thông tin (có GPS) thì tự thu gọn để nhường chỗ cho phần chọn bàn và thực đơn */
+function gInfoCheck() {
+  const d = $('gInfo'); if (!d || !d.open || !gInfoOk()) return;
+  const a = document.activeElement; if (a && ['gName', 'gPhone', 'gAddr'].indexOf(a.id) >= 0) return;
+  const r = $('gRecap'); if (r) r.innerHTML = gRecapHtml();
+  G.infoOpen = false; d.open = false;
+}
 function gRender() {
   if (!G.on) { $('gBody').innerHTML = '<div class="empty" style="text-align:center">Quán tạm ngưng nhận đặt món qua điện thoại. Vui lòng gọi nhân viên.</div>'; return; }
-  $('gBody').innerHTML = `${G.editId ? `<div class="gcard" style="background:#fff4d6">✏️ <b>Đang sửa đơn ${esc(G.editId)}</b> (${esc(G.table)})<br><small>Mỗi ngày chỉ được sửa 1 lần. Chọn lại món rồi bấm “Cập nhật đơn”.</small><div style="margin-top:6px"><button class="btn ghost sm" data-g="edit-cancel">Hủy sửa</button></div></div>` : ''}<h2>Thông tin khách hàng</h2>
+  $('gBody').innerHTML = `${G.editId ? `<div class="gcard" style="background:#fff4d6">✏️ <b>Đang sửa đơn ${esc(G.editId)}</b> (${esc(G.table)})<br><small>Mỗi ngày chỉ được sửa 1 lần. Chọn lại món rồi bấm “Cập nhật đơn”.</small><div style="margin-top:6px"><button class="btn ghost sm" data-g="edit-cancel">Hủy sửa</button></div></div>` : ''}<details class="gf" id="gInfo" ${gInfoOpen() ? 'open' : ''}><summary>Thông tin khách hàng<div class="grecap" id="gRecap">${gRecapHtml()}</div></summary>
     <div class="row one"><div style="flex:1.25"><label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}"></div>
       <div><label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}"></div></div>
     <label>Địa chỉ *</label>
     <input id="gAddr" maxlength="190" autocomplete="street-address" placeholder="Số nhà, đường, phường/xã…" value="${esc(G.addr)}">
     <div id="gGpsMsg" class="gps ${G.gps ? 'ok' : 'err'}">${G.gps ? '✅ Đã xác định vị trí của bạn.' : (G.gpsMsg || '⚠️ Bắt buộc bật GPS và cho phép truy cập vị trí thì mới đặt món được.')}</div>
     <button class="btn ghost sm" id="gGpsBtn" data-g="gps" style="width:100%;margin-top:6px">📍 Bật GPS &amp; lấy vị trí (bắt buộc)</button>
+    </details>
     <label>Bàn *</label><select id="gTable" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select><div id="gTableMsg" class="gps err" hidden></div>
     <h2 style="margin-top:14px">Thực đơn</h2><select id="gPick" style="font-size:16px;padding:11px 9px"></select>
     <div id="gCart"></div><div id="gTots"></div>
@@ -1881,7 +1897,7 @@ function gGps() {
     } catch (e) {}
     const box = $('gAddr');
     if (text && box && !box.value.trim()) { G.addr = text; box.value = text; gSaveInfo(); }
-    setMsg(text ? '✅ Đã xác định vị trí của bạn. Địa chỉ đã điền sẵn, bạn có thể bổ sung số nhà.' : '✅ Đã xác định vị trí của bạn. Hãy nhập địa chỉ (số nhà, đường, phường/xã).', 'ok'); btn.disabled = false;
+    setMsg(text ? '✅ Đã xác định vị trí của bạn. Địa chỉ đã điền sẵn, bạn có thể bổ sung số nhà.' : '✅ Đã xác định vị trí của bạn. Hãy nhập địa chỉ (số nhà, đường, phường/xã).', 'ok'); btn.disabled = false; gInfoCheck();
   }, err => {
     G.gps = null;
     setMsg(err.code === 1 ? 'Bạn chưa cho phép truy cập vị trí. Hãy bật GPS và cấp quyền Vị trí cho trình duyệt (trong Cài đặt) rồi bấm lại. Chưa có vị trí thì chưa gửi được đơn.' : 'Không lấy được vị trí (hãy bật GPS, ra chỗ thoáng rồi bấm lại). Chưa có vị trí thì chưa gửi được đơn.', 'err'); btn.disabled = false;
@@ -1897,11 +1913,12 @@ async function gPoll() {
   const l = gSentList(), box = $('gSent'); if (!l.length || !box) return;
   try {
     const st = await gcall('guestStatus', l.map(x => x.id)); box.className = ''; G.st = st;
-    box.innerHTML = l.map(x => { const s = st[x.id] || {}, m = s.method || x.m, pay = s.pay || '';
+    box.innerHTML = l.map((x, i) => { const s = st[x.id] || {}, m = s.method || x.m, pay = s.pay || '';
       const need = m === 'bank' && pay === 'CHUA' && s.st !== 'TU_CHOI';
       const canEdit = (s.st === 'CHO' || s.st === 'DA_DUYET') && pay !== 'KHACH_BAO' && pay !== 'DA_NHAN' && !s.ed;
-      return `<div class="gcard"><b>${esc(x.t)}</b> <small>${esc(x.id)}</small><div>${G_ST[s.st] || '—'}</div><div>${gPayTxt({ method: m, pay: pay })}</div>${s.ed ? '<div><small>✏️ Hôm nay bạn đã sửa đơn này (tối đa 1 lần/ngày).</small></div>' : ''}
-        ${need ? `<div class="row" style="margin-top:6px"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}${canEdit ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="edit" data-id="${esc(x.id)}">✏️ Sửa món</button></div>` : ''}</div>`; }).join('');
+      const op = G.sentOpen[x.id] !== undefined ? G.sentOpen[x.id] : i === 0;   // mặc định chỉ đơn gần nhất mở
+      return `<details class="gcard gs" data-sid="${esc(x.id)}" ${op ? 'open' : ''}><summary><b>${esc(x.t)}</b> <small>${esc(x.id)}</small></summary><div>${G_ST[s.st] || '—'}</div><div>${gPayTxt({ method: m, pay: pay })}</div>${s.ed ? '<div><small>✏️ Hôm nay bạn đã sửa đơn này (tối đa 1 lần/ngày).</small></div>' : ''}
+        ${need ? `<div class="g2"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}${canEdit ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="edit" data-id="${esc(x.id)}">✏️ Sửa món</button></div>` : ''}</details>`; }).join('');
   } catch (e) {}
 }
 /* Cửa sổ nổi (thanh toán / xem QR) */
@@ -1935,10 +1952,11 @@ function gPayDialog() {
   if (bank) gFillQr(c.total, memo);
 }
 function gValidate() {
-  if (G.name.trim().length < 2) throw new Error('Vui lòng nhập họ và tên.');
-  if (!gPhoneOk(G.phone)) throw new Error('Số điện thoại không hợp lệ.');
-  if (G.addr.trim().length < 5) throw new Error('Vui lòng nhập địa chỉ.');
-  if (!G.gps) throw new Error('Bắt buộc bật GPS và lấy vị trí trước khi đặt món. Bấm nút “Bật GPS & lấy vị trí”.');
+  const need = m => { const d = $('gInfo'); if (d && !d.open) { d.open = true; G.infoOpen = true; } throw new Error(m); };
+  if (G.name.trim().length < 2) need('Vui lòng nhập họ và tên.');
+  if (!gPhoneOk(G.phone)) need('Số điện thoại không hợp lệ.');
+  if (G.addr.trim().length < 5) need('Vui lòng nhập địa chỉ.');
+  if (!G.gps) need('Bắt buộc bật GPS và lấy vị trí trước khi đặt món. Bấm nút “Bật GPS & lấy vị trí”.');
   if (!G.table) throw new Error('Hãy chọn bàn trước khi gửi.');
   if (G.busy[G.table]) throw new Error(G.table + ' ' + G.busy[G.table] + '. Hãy chọn bàn khác.');
   if (!gCalc().n) throw new Error('Bạn chưa chọn món nào.');
@@ -1965,11 +1983,11 @@ async function guestInit() {
   try {
     const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || []; G.busy = d.busy || {};
     try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = String(sv.addr || '').replace(/\s*\(\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+\s*\)\s*$/, ''); } catch (e) {}
-    $('gShop').textContent = d.shop || 'Cửa hàng';
+    $('gShop').textContent = d.shop || 'Cửa hàng'; $('gLoad').hidden = true; $('gHead').hidden = false;
     if (d.address) { $('gAddrShop').textContent = d.address; $('gAddrShop').hidden = false; }
     const b = GQ.get('ban'); if (b && d.tables.includes(b)) { if (G.busy[b]) toast(b + ' ' + G.busy[b] + '. Vui lòng chọn bàn khác.', true); else G.table = b; }
     gRender(); setInterval(gPoll, 8000); setInterval(gSyncTables, 10000);
-  } catch (e) { $('gMsg').textContent = e.message; }
+  } catch (e) { $('gWait').hidden = true; $('gMsg').textContent = e.message; }
 }
 document.addEventListener('click', e => {
   if (!isGuestMode()) return;
@@ -1990,6 +2008,12 @@ document.addEventListener('click', e => {
     gOverlay(`${gBankHtml(it.a, it.memo)}<button class="btn" data-g="paid" data-id="${esc(id)}" style="width:100%;margin-top:10px">Tôi đã chuyển khoản</button><button class="btn ghost sm" data-g="close" style="width:100%;margin-top:8px">Đóng</button>`); return gFillQr(it.a, it.memo); }
   if (g === 'paid') return run(b, async () => { await gcall('guestMarkPaid', id, gCid()); gClose(); toast('Đã báo cho quán. Nhân viên sẽ xác nhận.'); gPoll(); });
 });
+document.addEventListener('click', e => {   // nhớ trạng thái mở/đóng do khách tự bấm (không tính lúc tự vẽ lại)
+  if (!isGuestMode() || !e.target.closest) return;
+  const sm = e.target.closest('summary'), d = sm && sm.parentElement; if (!d || d.tagName !== 'DETAILS') return;
+  setTimeout(() => { if (d.id === 'gInfo') G.infoOpen = d.open; else if (d.dataset.sid) G.sentOpen[d.dataset.sid] = d.open; }, 0);
+});
+document.addEventListener('focusout', e => { if (isGuestMode() && ['gName', 'gPhone', 'gAddr'].indexOf(e.target.id) >= 0) setTimeout(gInfoCheck, 250); });
 document.addEventListener('change', e => {
   if (!isGuestMode()) return;
   if (e.target.id === 'gTable') { G.table = e.target.value; gTablesNote(); }
