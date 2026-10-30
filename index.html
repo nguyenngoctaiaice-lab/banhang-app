@@ -25,6 +25,7 @@
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  .gcard .gl { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:8px 0; border-bottom:1px solid var(--line); } .gcard .gl > span:first-child { flex:1; min-width:0; } .gcard .gl > span:last-child { display:flex; align-items:center; gap:8px; white-space:nowrap; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
   #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--accent); }
   #guest .gseg { display:flex; gap:8px; margin:4px 0 6px; } #guest .gseg button { flex:1; padding:8px 6px; font-size:14px; }
@@ -374,6 +375,8 @@
       <div><label>Trạng thái</label><select id="pOn"><option value="1">Bật (áp dụng theo lịch)</option><option value="0">Tắt</option></select></div>
     </div>
     <div class="row" style="margin-top:10px"><button class="btn" id="btnPromoSave">Lưu chương trình</button><button class="btn ghost" id="btnPromoNew">Nhập chương trình mới</button></div>
+    <div style="margin-top:10px"><label style="display:flex;align-items:center;gap:8px;margin:4px 0"><input type="checkbox" id="pOnline" checked style="width:auto;margin:0"> Áp dụng cho đơn online (khách tự đặt món)</label>
+      <label style="display:flex;align-items:center;gap:8px;margin:4px 0"><input type="checkbox" id="pDirect" checked style="width:auto;margin:0"> Áp dụng cho khách mua hàng trực tiếp</label></div>
     <div id="promoList" class="wrap" style="margin-top:10px"></div>
   </details>
 
@@ -599,7 +602,7 @@ function fillTables() {
 }
 let cart = {}, cur = {};   // cur = { id, openTime } khi đang làm tiếp một hóa đơn đã treo
 /* Chương trình khuyến mại đang chạy (chỉ để xem trước; số tiền thật do máy chủ tính khi lưu hóa đơn) */
-const curPromo = () => { const n = Date.now(); let b = null; (DATA.promos || []).forEach(p => { if (n >= p.startMs && n <= p.endMs && (!b || p.pct > b.pct)) b = p; }); return b; };
+const curPromo = () => { const n = Date.now(), on = !!(cur && cur.guest); let b = null; (DATA.promos || []).forEach(p => { if ((on ? p.online !== false : p.direct !== false) && n >= p.startMs && n <= p.endMs && (!b || p.pct > b.pct)) b = p; }); return b; };
 async function refreshPromos() {
   try { const l = await api('listPromos'); if (JSON.stringify(l) !== JSON.stringify(DATA.promos || [])) { DATA.promos = l; renderCart(); } } catch (e) {}
 }
@@ -609,10 +612,10 @@ function renderPromoBanner() {
   const now = Date.now(), p2 = n => String(n).padStart(2, '0');
   const f = ms => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`; };
   const list = (DATA.promos || []).filter(p => p.endMs > now);
-  const key = list.map(p => p.id + p.pct + p.name + p.startMs + p.endMs).join('|');
+  const key = list.map(p => p.id + p.pct + p.name + p.startMs + p.endMs + p.online + p.direct).join('|');
   if (key === promoBannerKey) return;
   promoBannerKey = key;
-  $('promoBanner').innerHTML = list.map(p => `<div class="promoBar"><span>🎉 GIẢM ${esc(p.pct)}% · ${esc(p.name)} · Áp dụng từ ${f(p.startMs)} đến ${f(p.endMs)} 🎉</span></div>`).join('');
+  $('promoBanner').innerHTML = list.map(p => `<div class="promoBar"><span>🎉 GIẢM ${esc(p.pct)}% · ${esc(p.name)}${p.online === false ? ' (chỉ mua trực tiếp)' : p.direct === false ? ' (chỉ đơn online)' : ''} · Áp dụng từ ${f(p.startMs)} đến ${f(p.endMs)} 🎉</span></div>`).join('');
 }
 setInterval(() => { if (DATA && DATA.menu) renderPromoBanner(); }, 5000);
 const discPct = () => (DATA.customerTypes.find(c => c.type === $('saleCust').value) || {}).discPct || 0;
@@ -1623,15 +1626,15 @@ let promoRows = [], promoEditId = '';
 const PROMO_ST = { RUNNING: ['Đang áp dụng', 'pos'], UPCOMING: ['Chưa bắt đầu', ''], ENDED: ['Đã kết thúc', 'low'], OFF: ['Đang tắt', ''] };
 const nowLocalInput = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
 function promoFormReset() {
-  promoEditId = ''; $('pName').value = ''; $('pPct').value = ''; $('pStart').value = nowLocalInput(); $('pEnd').value = ''; $('pOn').value = '1';
+  promoEditId = ''; $('pName').value = ''; $('pPct').value = ''; $('pStart').value = nowLocalInput(); $('pEnd').value = ''; $('pOn').value = '1'; $('pOnline').checked = true; $('pDirect').checked = true;
   $('btnPromoSave').textContent = 'Lưu chương trình';
 }
 async function loadPromos() {
   try {
     promoRows = await api('adminListPromos');
-    $('promoList').innerHTML = promoRows.length ? `<table><tr><th>Tên chương trình</th><th class="n">Giảm</th><th>Bắt đầu</th><th>Kết thúc</th><th>Tình trạng</th><th></th></tr>${promoRows.map(p => {
+    $('promoList').innerHTML = promoRows.length ? `<table><tr><th>Tên chương trình</th><th class="n">Giảm</th><th>Bắt đầu</th><th>Kết thúc</th><th>Áp dụng cho</th><th>Tình trạng</th><th></th></tr>${promoRows.map(p => {
       const st = PROMO_ST[p.state] || [p.state, ''];
-      return `<tr><td>${esc(p.name)}</td><td class="n">${esc(p.pct)}%</td><td>${esc(p.startText)}</td><td>${esc(p.endText)}</td><td class="${st[1]}">${st[0]}</td><td>
+      return `<tr><td>${esc(p.name)}</td><td class="n">${esc(p.pct)}%</td><td>${esc(p.startText)}</td><td>${esc(p.endText)}</td><td>${p.online && p.direct ? 'Online + Trực tiếp' : p.online ? 'Chỉ đơn online' : 'Chỉ mua trực tiếp'}</td><td class="${st[1]}">${st[0]}</td><td>
         <button class="btn ghost sm" data-pa="edit" data-id="${esc(p.id)}">Sửa</button>
         <button class="btn ghost sm" data-pa="toggle" data-id="${esc(p.id)}">${p.enabled ? 'Tắt' : 'Bật'}</button>
         <button class="btn ghost sm" data-pa="del" data-id="${esc(p.id)}">Xóa</button></td></tr>`; }).join('')}</table>` : '<div class="empty">Chưa có chương trình nào.</div>';
@@ -1645,18 +1648,19 @@ $('btnPromoSave').onclick = e => run(e.target, async () => {
   if (!(pct > 0 && pct <= 100)) throw new Error('Phần trăm giảm phải lớn hơn 0 và tối đa 100.');
   if (!start || !end) throw new Error('Hãy chọn ngày giờ bắt đầu và kết thúc.');
   if (end <= start) throw new Error('Ngày giờ kết thúc phải sau ngày giờ bắt đầu.');
-  await api('savePromo', { id: promoEditId, name, pct, start, end, enabled: $('pOn').value === '1' });
+  if (!$('pOnline').checked && !$('pDirect').checked) throw new Error('Hãy chọn ít nhất một đối tượng áp dụng (đơn online hoặc mua trực tiếp).');
+  await api('savePromo', { id: promoEditId, name, pct, start, end, enabled: $('pOn').value === '1', online: $('pOnline').checked, direct: $('pDirect').checked });
   toast('Đã lưu chương trình khuyến mại.'); promoFormReset(); afterPromoChange();
 });
 $('promoList').addEventListener('click', e => {
   const b = e.target.closest('button[data-pa]'); if (!b) return;
   const p = promoRows.find(x => x.id === b.dataset.id); if (!p) return;
   if (b.dataset.pa === 'edit') {
-    promoEditId = p.id; $('pName').value = p.name; $('pPct').value = p.pct; $('pStart').value = p.start; $('pEnd').value = p.end; $('pOn').value = p.enabled ? '1' : '0';
+    promoEditId = p.id; $('pName').value = p.name; $('pPct').value = p.pct; $('pStart').value = p.start; $('pEnd').value = p.end; $('pOn').value = p.enabled ? '1' : '0'; $('pOnline').checked = p.online !== false; $('pDirect').checked = p.direct !== false;
     $('btnPromoSave').textContent = 'Cập nhật chương trình'; $('pName').scrollIntoView({ behavior: 'smooth', block: 'center' }); return toast('Đang sửa "' + p.name + '". Sửa xong bấm Cập nhật chương trình.');
   }
   if (b.dataset.pa === 'toggle') return run(b, async () => {
-    await api('savePromo', { id: p.id, name: p.name, pct: p.pct, start: p.start, end: p.end, enabled: !p.enabled });
+    await api('savePromo', { id: p.id, name: p.name, pct: p.pct, start: p.start, end: p.end, enabled: !p.enabled, online: p.online, direct: p.direct });
     toast(p.enabled ? 'Đã tắt chương trình.' : 'Đã bật chương trình.'); afterPromoChange();
   });
   if (b.dataset.pa === 'del') {
@@ -1799,7 +1803,7 @@ const gHasBank = () => !!(G.pay && (G.pay.qr || G.pay.bank || G.pay.account));
 function gCalc() {
   let gross = 0, n = 0; G.menu.forEach(m => { const q = G.cart[m.id] || 0; gross += q * m.price; n += q; });
   const d = Math.round(gross * G.custDisc / 100), now = Date.now(); let pr = null;
-  (G.promos || []).forEach(p => { if (p.startMs <= now && now <= p.endMs && (!pr || p.pct > pr.pct)) pr = p; });
+  (G.promos || []).forEach(p => { if (p.online !== false && p.startMs <= now && now <= p.endMs && (!pr || p.pct > pr.pct)) pr = p; });
   const pa = pr ? Math.round((gross - d) * pr.pct / 100) : 0, pre = gross - d - pa, taxPct = Number(G.pay.taxPct) || 0, tax = Math.round(pre * taxPct / 100);
   return { gross, n, d, pr, pa, pre, tax, taxPct, total: pre + tax };
 }
