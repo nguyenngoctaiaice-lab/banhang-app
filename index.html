@@ -24,6 +24,11 @@
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
+  /* Tab Bán hàng: tách thành các khối riêng, cách nhau, bo góc */
+  section.tab#sale { background:transparent; border:0; padding:0; }
+  #sale .saleCard { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  #sale .saleCard + .saleCard { margin-top:18px; }
+  #guestTitle { margin-top:2px !important; }
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
   .gcard .gl { display:flex; justify-content:flex-start; align-items:center; gap:12px; padding:6px 0; } .gcard .gl > span:first-child { flex:0 1 auto; min-width:0; } .gcard .gl > span:nth-child(2) { display:flex; align-items:center; gap:6px; white-space:nowrap; } .gcard .gl .gp { white-space:nowrap; font-weight:700; margin-left:4px; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
@@ -194,6 +199,7 @@
 <main>
 
 <section class="tab" id="sale">
+<div class="saleCard">
   <div id="promoBanner"></div>
   <div class="split">
     <div>
@@ -232,9 +238,12 @@
   </div>
   <div class="row" style="align-items:center;margin-top:18px"><h2 id="heldTitle">Hóa đơn đang treo</h2><button class="btn ghost sm" id="btnHeldRefresh" style="flex:0 0 auto">Làm mới</button></div>
   <div id="heldList" class="wrap"></div>
+</div>
+<div class="saleCard" id="guestCard">
   <h2 id="guestTitle" style="margin:22px 0 8px;font-size:20px;font-weight:800;text-transform:uppercase;text-align:center;letter-spacing:.3px">ĐƠN HÀNG CỦA KHÁCH ĐẶT MÓN ONLINE</h2>
   <div class="row" style="flex-wrap:nowrap;gap:8px;margin-bottom:8px"><button class="btn ghost sm" id="btnGuestRefresh" style="flex:1 1 0;min-width:0;white-space:nowrap">Làm mới</button><button class="btn ghost sm adm" hidden id="btnGuestAll" style="flex:1 1 0;min-width:0;white-space:nowrap">Xem cả đơn đã xử lý</button></div>
   <div id="guestList" class="wrap"></div>
+</div>
 </section>
 
 <section class="tab" id="import">
