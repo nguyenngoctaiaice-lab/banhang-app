@@ -1851,7 +1851,7 @@ function gDraw() {
   pk.disabled = !left.length;
   pk.innerHTML = `<option value="">${left.length ? '— Chọn món —' : 'Đã chọn hết các món'}</option>` + left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} – ${money(m.price)}đ</option>`).join('');
   const ids = Object.keys(G.cart);
-  $('gCart').innerHTML = ids.length ? `<div class="ghd">Thông tin đơn hàng đã đặt</div><table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
+  $('gCart').innerHTML = ids.length ? `<div class="ghd">THÔNG TIN ĐƠN HÀNG ĐÃ ĐẶT</div><table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
     return `<tr><td class="nm">${esc(m.name)}</td><td><span class="qty"><button data-g="-" data-id="${esc(id)}">−</button>${G.cart[id]}<button data-g="+" data-id="${esc(id)}">+</button></span></td><td class="n">${money(m.price * G.cart[id])}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chọn món ở trên để thêm.</div>';
   const c = gCalc();
   $('gTots').innerHTML = `<div class="tot"><span>Tiền hàng</span><span>${money(c.gross)}</span></div>` +
@@ -1883,7 +1883,7 @@ function gRender() {
     <div class="g1"><input id="gAddr" maxlength="190" autocomplete="street-address" placeholder="Số nhà, đường, phường/xã…" value="${esc(G.addr)}"><button class="btn ghost sm" id="gGpsBtn" data-g="gps">📍 Bật GPS</button></div>
     <div id="gGpsMsg" class="gps ${G.gps ? 'ok' : 'err'}">${G.gps ? '✅ Đã xác định vị trí của bạn.' : (G.gpsMsg || '⚠️ Bắt buộc bật GPS và cho phép truy cập vị trí thì mới đặt món được.')}</div>
     </details>
-    <div class="gmoi">Mời bạn chọn bàn và chọn món</div>
+    <div class="gmoi">MỜI BẠN CHỌN BÀN VÀ CHỌN MÓN</div>
     <div class="row one"><div><label>Bàn *</label><select id="gTable" style="font-size:16px;padding:11px 9px" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select></div><div><label>Thực đơn</label><select id="gPick" style="font-size:16px;padding:11px 9px"></select></div></div><div id="gTableMsg" class="gps err" hidden></div>
     <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
@@ -1963,14 +1963,14 @@ async function gPoll() {
 }
 /* Cửa sổ nổi (thanh toán / xem QR) */
 function gOverlay(html) {
-  let o = $('gOv'); if (!o) { o = document.createElement('div'); o.id = 'gOv'; o.style.cssText = 'position:fixed;left:0;right:0;top:0;height:100%;height:100dvh;box-sizing:border-box;background:rgba(0,0,0,.5);z-index:50;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:12px 12px calc(120px + env(safe-area-inset-bottom,0px))'; document.body.appendChild(o); }
+  let o = $('gOv'); if (!o) { o = document.createElement('div'); o.id = 'gOv'; o.style.cssText = 'position:fixed;left:0;right:0;top:0;bottom:-400px;box-sizing:border-box;background:rgba(0,0,0,.5);z-index:50;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:10px 12px calc(440px + env(safe-area-inset-bottom,0px))'; document.body.appendChild(o); }
   o.innerHTML = `<div style="background:#fff;max-width:420px;margin:0 auto;border-radius:10px;padding:14px">${html}</div>`; o.hidden = false;
 }
 const gClose = () => { const o = $('gOv'); if (o) o.hidden = true; };
 function gBankHtml(total, memo) {
   const p = G.pay;
   return `<div style="text-align:center"><div style="font-weight:700;color:#0a7a3d">Thanh toán qua ứng dụng mobile banking</div><div style="font-size:22px;font-weight:700;margin:6px 0">${money(total)}đ</div>
-    <img id="gQrImg" alt="Mã QR thanh toán" hidden style="display:block;margin:6px auto;width:230px;max-width:100%">
+    <img id="gQrImg" alt="Mã QR thanh toán" hidden style="display:block;margin:6px auto;width:min(230px,30vh);max-width:100%">
     <div>${esc(p.bank || '')}</div><div><b>${esc(p.account || '')}</b></div><div>${esc(p.holder || '')}</div>
     <div class="empty" style="padding:4px 0">Nội dung chuyển khoản: <b>${esc(memo)}</b></div></div>`;
 }
