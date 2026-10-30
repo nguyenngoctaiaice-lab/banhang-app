@@ -700,7 +700,7 @@ async function onCustChange() {
   const sel = $('saleCust');
   if (isVip(sel.value)) {
     if (!vipCode) { const c = await scanVipCode(); if (c) vipCode = c; else { sel.selectedIndex = 0; toast('Chưa quét mã nên không áp dụng khách VIP.', true); } }
-    if (vipCode) { DATA.menu.forEach(m => { if (!(m.id in cart)) cart[m.id] = 1; }); vipAuto = JSON.stringify(cart); }
+    if (vipCode) toast('Đã xác nhận khách VIP. Hãy tự chọn món cho khách.');   // không tự thêm cả thực đơn vào hóa đơn
   } else { if (vipAuto && JSON.stringify(cart) === vipAuto) cart = {}; vipAuto = null; vipCode = ''; }
   renderCart();
 }
