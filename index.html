@@ -390,6 +390,28 @@
 <script>
 const $ = id => document.getElementById(id);
 const money = n => (Math.round(n) || 0).toLocaleString('vi-VN');
+/* Đọc số tiền thành chữ tiếng Việt */
+function moneyWords(n) {
+  n = Math.round(Number(n) || 0);
+  if (n === 0) return 'Không đồng';
+  const D = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  const three = (x, full) => {
+    const h = Math.floor(x / 100), t = Math.floor(x % 100 / 10), u = x % 10; let s = [];
+    if (h > 0 || full) s.push(D[h] + ' trăm');
+    if (t > 1) s.push(D[t] + ' mươi'); else if (t === 1) s.push('mười'); else if ((h > 0 || full) && u > 0) s.push('lẻ');
+    if (u > 0) s.push(t > 1 && u === 1 ? 'mốt' : (t > 0 && u === 5 ? 'lăm' : D[u]));
+    return s.join(' ');
+  };
+  const units = ['', ' nghìn', ' triệu', ' tỷ'], parts = [];
+  const g = []; let x = n; while (x > 0) { g.push(x % 1000); x = Math.floor(x / 1000); }
+  let started = false;
+  for (let i = g.length - 1; i >= 0; i--) {
+    if (g[i] === 0) { if (started && i === 0) {} continue; }
+    parts.push(three(g[i], started) + units[i % 4] + (i >= 4 ? '' : '')); started = true;
+  }
+  const t = parts.join(' ').replace(/\s+/g, ' ').trim() + ' đồng';
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const sign = n => `<span class="${n < 0 ? 'neg' : 'pos'}">${n < 0 ? '' : '+'}${money(n)}</span>`;
@@ -800,6 +822,7 @@ function showReceipt(r, opt) {
     <div class="rr b"><span>Tiền thuế (${esc(st.taxPct)}%)</span><span>${money(tax)}</span></div>` : ''}
     <hr>
     <div class="grand"><span>Tổng thanh toán</span><span>${money(grand)}</span></div>
+    <div class="words" style="font-size:12px;font-style:italic;font-weight:400;margin:-2px 0 6px">(${esc(moneyWords(grand))})</div>
     <div id="cashLines"></div>
     ${opt.reprint || free ? '' : `<div class="paybox noprint">
       <div class="seg"><button class="btn sm" data-a="pm" data-m="bank">Chuyển khoản</button><button class="btn sm ghost" data-a="pm" data-m="cash">Tiền mặt</button></div>
@@ -932,7 +955,7 @@ async function makeQr(text) {
 }
 function receiptText(r, st, grand, when) {
   const lines = (r.lines || []).map((l, i) => `${i + 1}. ${l.name} x${l.qty} = ${money(l.amount)}`).join('\n');
-  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}${Number(r.promoAmt) > 0 ? `\nKhuyến mại ${r.promoName} (${r.promoPct}%): -${money(r.promoAmt)}` : ''}\nTỔNG THANH TOÁN: ${money(grand)}đ\n✓ Đã thanh toán. Cảm ơn quý khách!`;
+  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${r.table}\n${lines}${Number(r.promoAmt) > 0 ? `\nKhuyến mại ${r.promoName} (${r.promoPct}%): -${money(r.promoAmt)}` : ''}\nTỔNG THANH TOÁN: ${money(grand)}đ\n(${moneyWords(grand)})\n✓ Đã thanh toán. Cảm ơn quý khách!`;
 }
 function loadH2C() {
   return new Promise((ok, no) => {
