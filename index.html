@@ -25,7 +25,7 @@
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
-  .gcard .gl { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:8px 0; border-bottom:1px solid var(--line); } .gcard .gl > span:first-child { flex:1; min-width:0; } .gcard .gl > span:last-child { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .gcard .gl { display:flex; justify-content:flex-start; align-items:center; gap:12px; padding:6px 0; } .gcard .gl > span:first-child { flex:0 1 auto; min-width:0; } .gcard .gl > span:nth-child(2) { display:flex; align-items:center; gap:6px; white-space:nowrap; } .gcard .gl .gp { white-space:nowrap; font-weight:700; margin-left:4px; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
   #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--accent); }
   #guest .gseg { display:flex; gap:8px; margin:4px 0 6px; } #guest .gseg button { flex:1; padding:8px 6px; font-size:14px; }
@@ -2014,6 +2014,7 @@ function beep() {   // âm thanh báo có khách đặt món mới
   try { const a = getOrderAudio(); a.muted = false; a.currentTime = 0; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
 }
 const GS_TXT = { CHO: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Đã từ chối' };
+const gPrice = id => { const m = ((DATA && DATA.menu) || []).find(x => String(x.id) === String(id)); return m ? Number(m.price) || 0 : 0; };
 async function loadGuest(silent) {
   if (!$('guestList') || (silent && $('guestList').contains(document.activeElement))) return;
   try {
@@ -2038,13 +2039,17 @@ async function loadGuest(silent) {
       return `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
       <div><span class="gtag">📱 KHÁCH ĐẶT</span>${o.edited ? ' <span class="gtag" style="background:#e67e00">✏️ Khách đã sửa</span>' : ''} <b>${esc(dispName)}</b> · <span style="white-space:nowrap">${esc(dispPhone)} <a href="tel:${esc(dispPhone)}" style="text-decoration:none" title="Gọi ngay">📞</a> <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(dispPhone)}').then(()=>toast('Đã sao chép SĐT')).catch(()=>{})" title="Sao chép số">📋</button></span><br>🏠 ${esc(o.guestAddr)}${gpsCoords ? ` <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(gpsCoords)}').then(()=>toast('Đã sao chép tọa độ')).catch(()=>{})" title="Sao chép tọa độ">📋</button>` : ''}</div>
       <div style="margin:4px 0">${payTag({ src: 'KHACH_DAT', payMethod: o.payMethod, payState: o.payState })} · Tổng ước tính: <b>${money(o.amount)}đ</b></div>
-      ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>${o.status === 'CHO' ? `x <input type="number" min="0" max="50" class="gq" data-i="${esc(i.id)}" value="${i.qty}" style="width:64px">` : 'x ' + i.qty}</span></div>`).join('')}
+      ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>${o.status === 'CHO' ? `x <input type="number" min="0" max="50" class="gq" data-i="${esc(i.id)}" value="${i.qty}" style="width:64px">` : 'x ' + i.qty}</span><span class="gp" data-p="${gPrice(i.id)}">${money(gPrice(i.id) * i.qty)}đ</span></div>`).join('')}
       ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}
       <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`;
     }).join('')
       : '<div class="empty">Chưa có yêu cầu nào.</div>';
   } catch (e) { if (!silent) toast(e.message, true); }
 }
+$('guestList').addEventListener('input', e => {
+  const q = e.target.closest('.gq'); if (!q) return;
+  const row = q.closest('.gl'), pr = row && row.querySelector('.gp'); if (pr) pr.textContent = money(Number(pr.dataset.p) * (Number(q.value) || 0)) + 'đ';
+});
 $('guestList').addEventListener('click', e => {
   const a = e.target.dataset.a; if (!/^g(Ok|No|Del|Pay)$/.test(a || '')) return;
   const card = e.target.closest('.gcard'), id = card.dataset.id;
