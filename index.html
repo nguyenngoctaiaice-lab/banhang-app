@@ -26,6 +26,10 @@
   section.tab.on { display:block; }
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
+  #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--accent); }
+  #guest .gseg { display:flex; gap:8px; margin:4px 0 6px; } #guest .gseg button { flex:1; padding:8px 6px; font-size:14px; }
+  #guest .gps { font-size:13px; color:var(--muted); margin-top:4px; } #guest .gps.err { color:var(--warn); } #guest .gps.ok { color:var(--ok); }
+  #gTable option:disabled { color:#999; }
   .gtag { display:inline-block; background:#6a1b9a; color:#fff; font-size:11px; font-weight:700; padding:1px 6px; border-radius:10px; }
   .pst { display:inline-block; font-size:12px; font-weight:600; padding:2px 7px; border-radius:6px; }
   .pst-bad { background:#fde8e8; color:#b3261e; } .pst-warn { background:#fff3d6; color:#9a5b00; } .pst-ok { background:#dff5e6; color:#0a7a3d; } .pst-cash { background:#e8eefc; color:#1d4ed8; }
@@ -155,7 +159,7 @@
 <body>
 
 <!-- KHÁCH ĐẶT MÓN -->
-<div id="guest" hidden><h2 id="gShop" style="text-align:center">Đặt món</h2><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
+<div id="guest" hidden><div class="ghead"><div class="shop" id="gShop">Đặt món</div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐẶT MÓN TẠI BÀN</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
 
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
@@ -616,6 +620,16 @@ function tickClock() {
   $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
 }
 setInterval(tickClock, 1000);
+/* Đồng bộ bàn với khách tự đặt: bàn thu ngân đang làm hóa đơn (chưa treo) được "giữ" để khách không chọn trùng */
+let lockedTable = '';
+function syncTableLock() {
+  if (!USER || !DATA || !DATA.tables) return;
+  const want = (Object.keys(cart).length && !cur.id) ? $('saleTable').value : '';
+  if (want === lockedTable) return;
+  const old = lockedTable; lockedTable = want;
+  if (want || old) api('lockTable', want, old && old !== want ? old : '').catch(() => {});
+}
+setInterval(() => { if (lockedTable) api('lockTable', lockedTable, '').catch(() => {}); }, 40000);   // giữ bàn (hết hạn sau ~2 phút nếu thu ngân đóng trang)
 function resetOrder() { cart = {}; cur = {}; vipAuto = null; vipCode = ''; $('saleNote').value = ''; if (isVip($('saleCust').value)) $('saleCust').selectedIndex = 0;   // không để VIP "dính" sang hóa đơn sau
   fillTables(); renderCart(); }
 function renderMenu() {
@@ -646,7 +660,9 @@ function renderCart() {
   $('tPreRow').hidden = $('tTaxRow').hidden = !(taxPct > 0);   // thuế luôn hiện khi có cài thuế
   if (taxPct > 0) { $('tPre').textContent = money(pre); $('tTaxLabel').textContent = `Thuế (${taxPct}%)`; $('tTax').textContent = money(tax); }
   $('tTotal').textContent = money(pre + tax);
+  syncTableLock();
 }
+$('saleTable').addEventListener('change', () => syncTableLock());
 $('menuPick').addEventListener('change', e => { const id = e.target.value; if (!id) return; cart[id] = 1; renderCart(); });
 $('cart').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -775,14 +791,15 @@ $('btnPay').onclick = async () => {
   let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
   const sn = snapshotOrder(), c = calcReceipt(payload.items, payload.custType);
   payState = { method: (sn.cur.guest && sn.cur.guest.payMethod === 'cash') ? 'cash' : 'bank', given: 0, grand: 0, guest: sn.cur.guest || null };
-  showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN') }, { pending: true });
+  showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN'), guest: sn.cur.guest || null }, { pending: true });
   resetOrder();
   try {
     const r = await api('saveOrder', payload, 'PAY');
     showReceipt(r);
     paidCache.set(r.id, Promise.resolve({ id: r.id, items: payload.items, table: payload.table, custType: payload.custType, note: payload.note,
       openTime: sn.cur.openTime, payTime: r.payTime, staff: r.staff || r.staffName || (USER && USER.name),
-      gross: r.gross, discount: r.discount, discPct: r.discPct, promoName: r.promoName, promoPct: r.promoPct, promoAmt: r.promoAmt }));
+      gross: r.gross, discount: r.discount, discPct: r.discPct, promoName: r.promoName, promoPct: r.promoPct, promoAmt: r.promoAmt,
+      src: r.src || (sn.cur.guest ? 'KHACH_DAT' : ''), guestName: r.guestName || (sn.cur.guest && sn.cur.guest.name) || '', guestPhone: r.guestPhone || (sn.cur.guest && sn.cur.guest.phone) || '', guestAddr: r.guestAddr || (sn.cur.guest && sn.cur.guest.addr) || '' }));
     heldCache.delete(r.id); if (sn.cur.id) { heldTables.delete(sn.cur.table); loadHeld(true); } fillTables();
   } catch (err) { $('receipt').hidden = true; loadHeld(true); toast(err.message + (restoreOrder(sn) ? '' : ' (thanh toán chưa được lưu, hãy tạo lại hóa đơn)'), true); }
 };
@@ -816,6 +833,7 @@ function showReceipt(r, opt) {
   const o = dtParse(r.openTime), p = dtParse(r.payTime);
   const when = o && p ? `${p.d} (${o.t} - ${p.t})` : `${r.payTime || r.openTime || ''}`;
   const staff = r.staff || r.staffName || (USER && USER.name) || '';
+  const gst = r.guest || (r.src === 'KHACH_DAT' ? { name: r.guestName, phone: r.guestPhone, addr: r.guestAddr } : null);   // khách tự đặt món: in thêm thông tin khách
   const bin = bankBin(st.bank), dyn = !!(bin && st.account);
   const free = grand <= 0, hasPay = !opt.reprint && !free && (dyn || st.qr || st.bank || st.account || st.holder);
   $('receipt').hidden = false; if (opt.pending) $('receipt').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -825,7 +843,7 @@ function showReceipt(r, opt) {
       <div id="printTag" style="font-weight:400;font-style:italic;font-size:13px;margin-top:2px" hidden></div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(r.table)}</div>
-    <div><b>Phục vụ:</b> ${esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>
+    <div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(gst.addr)}</div>` : ''}` : ''}
     <hr>
     <table><tr><th>Tên món</th><th class="n">SL</th><th class="n">ĐG</th><th class="n">Thành tiền</th></tr>
       ${r.lines.map((l, i) => `<tr><td>${i + 1}. ${esc(l.name)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
@@ -1124,7 +1142,8 @@ async function viewInvoice(inv, inReport) {
   if (inReport && $('repSlot')) $('repSlot').appendChild($('receipt'));   // xem ngay trong báo cáo
   else if (!$('sale').classList.contains('on')) openTab('sale');   // còn lại hiện ở tab Bán hàng
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
-    openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true, slot: !!(inReport && $('repSlot')) });
+    openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff,
+    src: o.src, guestName: o.guestName, guestPhone: o.guestPhone, guestAddr: o.guestAddr }, { reprint: true, slot: !!(inReport && $('repSlot')) });
   $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
   const rid = o.id || inv.id;   // hóa đơn tiền mặt: hiện lại tiền khách đưa / tiền trả lại đã lưu (máy chủ chưa hỗ trợ thì bỏ qua)
   api('getPayment', rid).then(pm => {
@@ -1769,11 +1788,11 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
 const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
-const G = { menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '' };
+const G = { menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '' };
 const gcall = (fn, ...a) => call(fn, a, false);
 const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
 const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
-const gSaveInfo = () => store.set('bh_ginfo', JSON.stringify({ name: G.name, phone: G.phone, addr: G.addr }));
+const gSaveInfo = () => store.set('bh_ginfo', JSON.stringify({ name: G.name, phone: G.phone, addr: G.addr, am: G.addrMode }));
 const gPhoneOk = v => /^(\+?84|0)\d{9,10}$/.test(String(v || '').replace(/[\s.\-()]/g, ''));
 const gHasBank = () => !!(G.pay && (G.pay.qr || G.pay.bank || G.pay.account));
 /* Tính tiền xem trước giống thu ngân (máy chủ vẫn tự tính lại khi nhận đơn) */
@@ -1798,19 +1817,61 @@ function gDraw() {
     (c.taxPct > 0 ? `<div class="tot"><span>Thuế (${c.taxPct}%)</span><span>${money(c.tax)}</span></div>` : '') +
     `<div class="tot big"><span>Thành tiền</span><span>${money(c.total)}</span></div>`;
 }
+function gTableOpts() {
+  return '<option value="">-- Chọn bàn --</option>' + G.tables.map(t => { const b = G.busy[t]; return `<option value="${esc(t)}" ${t === G.table ? 'selected' : ''} ${b ? 'disabled' : ''}>${esc(t)}${b ? ' (' + b + ')' : ''}</option>`; }).join('');
+}
 function gRender() {
   if (!G.on) { $('gBody').innerHTML = '<div class="empty" style="text-align:center">Quán tạm ngưng nhận đặt món qua điện thoại. Vui lòng gọi nhân viên.</div>'; return; }
   $('gBody').innerHTML = `<h2>Thông tin khách hàng</h2>
-    <label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}">
-    <label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}">
-    <label>Địa chỉ *</label><input id="gAddr" maxlength="150" autocomplete="street-address" value="${esc(G.addr)}">
-    <label>Bàn *</label><select id="gTable"><option value="">-- Chọn bàn --</option>${G.tables.map(t => `<option ${t === G.table ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <div class="row one"><div style="flex:1.25"><label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}"></div>
+      <div><label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}"></div></div>
+    <label>Địa chỉ *</label>
+    <div class="gseg"><button class="btn sm ${G.addrMode === 'gps' ? '' : 'ghost'}" data-g="am-hand">✍️ Nhập tay</button><button class="btn sm ${G.addrMode === 'gps' ? 'ghost' : ''}" data-g="am-gps">📍 Lấy vị trí GPS</button></div>
+    <input id="gAddr" maxlength="220" autocomplete="street-address" placeholder="${G.addrMode === 'gps' ? 'Địa chỉ lấy từ GPS (có thể sửa thêm)' : 'Số nhà, đường, phường/xã…'}" value="${esc(G.addr)}">
+    <div id="gGpsMsg" class="gps"${G.addrMode === 'gps' ? '' : ' hidden'}>${G.gpsMsg || 'Bấm nút bên dưới và cho phép truy cập vị trí khi điện thoại hỏi.'}</div>
+    <button class="btn ghost sm" id="gGpsBtn" data-g="gps" style="width:100%;margin-top:6px"${G.addrMode === 'gps' ? '' : ' hidden'}>📍 Bật GPS &amp; tự lấy địa chỉ</button>
+    <label>Bàn *</label><select id="gTable">${gTableOpts()}</select><div id="gTableMsg" class="gps err" hidden></div>
     <h2 style="margin-top:14px">Thực đơn</h2><select id="gPick" style="font-size:16px;padding:11px 9px"></select>
     <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
     <button class="btn" id="gPayBtn" style="width:100%;margin-top:12px">Thanh toán</button>
     <h2 style="margin-top:16px">Đơn đã gửi</h2><div id="gSent" class="empty">Chưa có.</div>`;
-  gDraw(); gPoll();
+  gDraw(); gPoll(); gTablesNote();
+}
+/* Bàn đồng bộ với thu ngân: bàn đang có hóa đơn treo / thu ngân đang chọn / có yêu cầu chờ duyệt thì khách không chọn được */
+function gTablesNote() {
+  const m = $('gTableMsg'); if (!m) return;
+  const b = G.table && G.busy[G.table];
+  if (b) { m.textContent = G.table + ' ' + b + '. Vui lòng chọn bàn khác hoặc gọi nhân viên.'; m.hidden = false; } else m.hidden = true;
+}
+async function gSyncTables() {
+  if (!G.on || !$('gTable')) return;
+  try {
+    const r = await gcall('guestTables', gCid(), G.phone);
+    G.busy = r.busy || {};
+    if (G.table && G.busy[G.table]) { const t = G.table; G.table = ''; $('gTable').innerHTML = gTableOpts(); toast(t + ' ' + G.busy[t] + ', hãy chọn bàn khác.', true); }
+    else { const keep = document.activeElement === $('gTable'); if (!keep) $('gTable').innerHTML = gTableOpts(); }
+    gTablesNote();
+  } catch (e) {}
+}
+/* Lấy vị trí GPS rồi đổi ra địa chỉ (OpenStreetMap). Kết quả: "địa chỉ (vĩ độ, kinh độ)" */
+function gGps() {
+  const msg = $('gGpsMsg'), btn = $('gGpsBtn'), setMsg = (t, c) => { G.gpsMsg = t; msg.textContent = t; msg.className = 'gps ' + (c || ''); };
+  if (!navigator.geolocation) return setMsg('Thiết bị không hỗ trợ GPS. Hãy nhập địa chỉ bằng tay.', 'err');
+  btn.disabled = true; setMsg('Đang lấy vị trí… (nhớ bật GPS và cho phép truy cập vị trí)');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const lat = pos.coords.latitude.toFixed(6), lon = pos.coords.longitude.toFixed(6), xy = `(${lat}, ${lon})`;
+    let text = '';
+    try {
+      const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=vi&lat=${lat}&lon=${lon}`, { signal: ctl.signal }); clearTimeout(tm);
+      const j = await r.json(); text = String(j.display_name || '').replace(/, Việt Nam$/i, '').slice(0, 170);
+    } catch (e) {}
+    G.addr = (text ? text + ' ' : 'Vị trí GPS ') + xy; $('gAddr').value = G.addr; gSaveInfo();
+    setMsg(text ? '✅ Đã lấy địa chỉ từ GPS. Bạn có thể sửa thêm số nhà nếu cần.' : '✅ Đã lấy tọa độ GPS (chưa tra được tên đường, bạn có thể bổ sung tay).', 'ok'); btn.disabled = false;
+  }, err => {
+    setMsg(err.code === 1 ? 'Bạn chưa cho phép truy cập vị trí. Hãy bật GPS / cấp quyền Vị trí cho trình duyệt rồi bấm lại, hoặc nhập địa chỉ bằng tay.' : 'Không lấy được vị trí (hãy bật GPS, ra chỗ thoáng rồi thử lại).', 'err'); btn.disabled = false;
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
 }
 const G_ST = { CHO: '⏳ Chờ nhân viên xác nhận', DA_DUYET: '✅ Đã xác nhận, món đang được chuẩn bị', TU_CHOI: '❌ Nhân viên từ chối, vui lòng gọi nhân viên' };
 function gPayTxt(s) {
@@ -1863,6 +1924,7 @@ function gValidate() {
   if (!gPhoneOk(G.phone)) throw new Error('Số điện thoại không hợp lệ.');
   if (G.addr.trim().length < 5) throw new Error('Vui lòng nhập địa chỉ.');
   if (!G.table) throw new Error('Hãy chọn bàn trước khi gửi.');
+  if (G.busy[G.table]) throw new Error(G.table + ' ' + G.busy[G.table] + '. Hãy chọn bàn khác.');
   if (!gCalc().n) throw new Error('Bạn chưa chọn món nào.');
 }
 function gSend(btn, paid) {
@@ -1876,11 +1938,12 @@ function gSend(btn, paid) {
 async function guestInit() {
   $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false;
   try {
-    const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || [];
-    try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = sv.addr || ''; } catch (e) {}
-    $('gShop').textContent = d.shop ? d.shop + ' – Đặt món' : 'Đặt món';
-    const b = GQ.get('ban'); if (b && d.tables.includes(b)) G.table = b;
-    gRender(); setInterval(gPoll, 8000);
+    const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || []; G.busy = d.busy || {};
+    try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = sv.addr || ''; G.addrMode = sv.am === 'gps' ? 'gps' : 'hand'; } catch (e) {}
+    $('gShop').textContent = d.shop || 'Cửa hàng';
+    if (d.address) { $('gAddrShop').textContent = d.address; $('gAddrShop').hidden = false; }
+    const b = GQ.get('ban'); if (b && d.tables.includes(b)) { if (G.busy[b]) toast(b + ' ' + G.busy[b] + '. Vui lòng chọn bàn khác.', true); else G.table = b; }
+    gRender(); setInterval(gPoll, 8000); setInterval(gSyncTables, 10000);
   } catch (e) { $('gMsg').textContent = e.message; }
 }
 document.addEventListener('click', e => {
@@ -1888,6 +1951,8 @@ document.addEventListener('click', e => {
   if (e.target.id === 'gPayBtn') { try { gValidate(); } catch (err) { return toast(err.message, true); } G.method = ''; return gPayDialog(); }
   const b = e.target.closest('[data-g]'); if (!b) return; const g = b.dataset.g, id = b.dataset.id;
   if (g === '+' || g === '-') { const q = (G.cart[id] || 0) + (g === '+' ? 1 : -1); G.cart[id] = Math.max(0, Math.min(50, q)); if (!G.cart[id]) delete G.cart[id]; return gDraw(); }
+  if (g === 'am-hand' || g === 'am-gps') { G.addrMode = g === 'am-gps' ? 'gps' : 'hand'; gSaveInfo(); const keep = { n: $('gName').value, p: $('gPhone').value, a: $('gAddr').value, t: $('gNote').value }; G.name = keep.n; G.phone = keep.p; G.addr = keep.a; G.note = keep.t; gRender(); if (g === 'am-gps') gGps(); return; }
+  if (g === 'gps') return gGps();
   if (g === 'close') return gClose();
   if (g === 'm-bank' || g === 'm-cash') { G.method = g === 'm-bank' ? 'bank' : 'cash'; return gPayDialog(); }
   if (g === 'send-paid') return gSend(b, true);
@@ -1898,7 +1963,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   if (!isGuestMode()) return;
-  if (e.target.id === 'gTable') G.table = e.target.value;
+  if (e.target.id === 'gTable') { G.table = e.target.value; gTablesNote(); }
   if (e.target.id === 'gPick' && e.target.value) { G.cart[e.target.value] = 1; gDraw(); }
 });
 document.addEventListener('input', e => {
