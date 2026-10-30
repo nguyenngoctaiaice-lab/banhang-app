@@ -27,8 +27,12 @@
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
   .gcard .gl { display:flex; justify-content:flex-start; align-items:center; gap:12px; padding:6px 0; } .gcard .gl > span:first-child { flex:0 1 auto; min-width:0; } .gcard .gl > span:nth-child(2) { display:flex; align-items:center; gap:6px; white-space:nowrap; } .gcard .gl .gp { white-space:nowrap; font-weight:700; margin-left:4px; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
-  #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--accent); }
-  #guest .gload { text-align:center; margin:18px 0 10px; } #guest .gbig { font-weight:800; font-size:clamp(18px,7.6vw,40px); line-height:1.2; white-space:nowrap; color:var(--accent); } #guest .gwait { font-size:13px; font-style:italic; color:var(--muted); margin-top:6px; }
+  #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--gInk,var(--accent)); }
+  #guest { --ink:var(--gInk,var(--accent)); --muted:var(--gInk,var(--accent)); color:var(--gInk,var(--accent)); }
+  #guest .gload { min-height:calc(100vh - 60px); min-height:calc(100svh - 60px); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; margin:0; } #guest .gload[hidden] { display:none; }
+  #guest .gbig { font-weight:800; font-size:clamp(18px,7.6vw,40px); line-height:1.2; white-space:nowrap; color:var(--gInk,var(--accent)); }
+  #guest .gwait { position:relative; width:max-content; max-width:100%; font-size:13px; font-style:italic; color:var(--gInk,var(--accent)); margin-top:8px; } #guest .gwait[hidden] { display:none; } #guest .gwg { visibility:hidden; white-space:nowrap; } #guest .gwl { position:absolute; left:0; top:0; white-space:nowrap; }
+  #guest .g1 { display:flex; gap:8px; align-items:stretch; } #guest .g1 input { flex:1 1 0; min-width:0; } #guest .g1 .btn { flex:0 0 auto; white-space:nowrap; padding:0 12px; }
   #gMsg:empty { display:none; } #gMsg { margin:0; padding:4px 0; }
   #guest details.gf > summary { cursor:pointer; user-select:none; font-size:16px; font-weight:700; text-align:center; padding:2px 0 6px; } #guest .grecap { font-weight:400; font-size:14px; color:var(--muted); margin-top:2px; } #guest details.gf[open] .grecap, #guest .grecap:empty { display:none; }
   #guest details.gs > summary { cursor:pointer; user-select:none; padding:2px 0; } #guest details.gs[open] > summary { margin-bottom:4px; }
@@ -165,7 +169,7 @@
 <body>
 
 <!-- KHÁCH ĐẶT MÓN -->
-<div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig">ĐẶT ĐỒ ĂN ONLINE</div><div class="gwait" id="gWait">Vui lòng đợi trong ít phút...</div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
+<div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig">ĐẶT ĐỒ ĂN ONLINE</div><div class="gwait" id="gWait"><span class="gwg">Vui lòng đợi trong ít phút...</span><span class="gwl" id="gWaitTxt"></span></div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
 
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
@@ -338,6 +342,12 @@
         <select id="thInkOn"><option value="0">Mặc định (Bán hàng theo chủ đề, đăng nhập xanh lá)</option><option value="1">Chọn màu riêng</option></select></div>
       <div><label>Chọn màu</label><input type="color" id="thInk" value="#1f2a2e" style="height:40px;padding:2px"></div>
     </div>
+    <div class="row" style="margin-top:10px;align-items:end">
+      <div><label>Màu chữ trang khách đặt món online</label>
+        <select id="thGInkOn"><option value="0">Mặc định (xanh theo giao diện)</option><option value="1">Chọn màu riêng</option></select></div>
+      <div><label>Chọn màu</label><input type="color" id="thGInk" value="#0f5c5c" style="height:40px;padding:2px"></div>
+    </div>
+    <div id="gInkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff;font-weight:700;text-align:center;color:var(--accent)">ĐẶT ĐỒ ĂN ONLINE · ĐƠN HÀNG ONLINE · Thông tin khách hàng</div>
     <div id="inkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff">Chữ mẫu: Ốc vặn — 30.000 · Tiền hàng · Thành tiền</div>
     <div class="row" style="margin-top:10px;align-items:end">
       <div><label>Màu nền thanh chữ chạy khuyến mại</label><input type="color" id="thBarBg" value="#1f8f3f" style="height:40px;padding:2px"></div>
@@ -823,7 +833,7 @@ const SET_KEY = 'bh_settings';
 let SETTINGS = null;
 const normSettings = o => { o = o || {}; return { shopName: o.shopName || '', address: o.address || '', taxPct: o.taxPct === undefined ? 10 : (Number(o.taxPct) || 0),
   bank: o.bank || '', account: o.account || '', holder: o.holder || '', qr: o.qr || '', theme: o.theme || 'default', fx: o.fx !== false, saleInk: /^#[0-9a-f]{6}$/i.test(o.saleInk || '') ? o.saleInk : '',
-  barBg: /^#[0-9a-f]{6}$/i.test(o.barBg || '') ? o.barBg : '', barInk: /^#[0-9a-f]{6}$/i.test(o.barInk || '') ? o.barInk : '' }; };
+  barBg: /^#[0-9a-f]{6}$/i.test(o.barBg || '') ? o.barBg : '', barInk: /^#[0-9a-f]{6}$/i.test(o.barInk || '') ? o.barInk : '', guestInk: /^#[0-9a-f]{6}$/i.test(o.guestInk || '') ? o.guestInk : '' }; };
 function getSettings() {
   if (!SETTINGS) { let o = {}; try { o = JSON.parse(store.get(SET_KEY) || '{}') || {}; } catch (e) {} SETTINGS = normSettings(o); }
   return SETTINGS;
@@ -1560,7 +1570,7 @@ $('btnSetSave').onclick = e => run(e.target, async () => {
   const tax = Number($('sTax').value);
   if (!(tax >= 0 && tax <= 100)) throw new Error('Thuế phải từ 0 đến 100.');
   const obj = { shopName: $('sName').value.trim(), address: $('sAddr').value.trim(), taxPct: tax,
-    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr, theme: getSettings().theme, fx: getSettings().fx, saleInk: getSettings().saleInk, barBg: getSettings().barBg, barInk: getSettings().barInk };
+    bank: $('sBank').value.trim(), account: $('sAcc').value.trim(), holder: $('sHolder').value.trim(), qr: pendingQr, theme: getSettings().theme, fx: getSettings().fx, saleInk: getSettings().saleInk, barBg: getSettings().barBg, barInk: getSettings().barInk, guestInk: getSettings().guestInk };
   SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj));
   let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
   const b = obj.bank;
@@ -1782,6 +1792,7 @@ function fillTheme() {
   $('thTheme').innerHTML = THEMES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
   $('thTheme').value = THEMES.some(t => t.id === st.theme) ? st.theme : 'default'; $('thFx').value = st.fx ? '1' : '0';
   $('thInkOn').value = st.saleInk ? '1' : '0'; if (st.saleInk) $('thInk').value = st.saleInk; showInkPrev();
+  $('thGInkOn').value = st.guestInk ? '1' : '0'; if (st.guestInk) $('thGInk').value = st.guestInk; showGInkPrev();
   $('thBarBg').value = st.barBg || BAR_DEF.bg; $('thBarInk').value = st.barInk || BAR_DEF.ink;
 }
 const previewTheme = () => applyTheme($('thTheme').value, $('thFx').value === '1');
@@ -1789,11 +1800,14 @@ $('thTheme').onchange = previewTheme; $('thFx').onchange = previewTheme;
 const inkChosen = () => $('thInkOn').value === '1' ? $('thInk').value : '';
 function showInkPrev() { const c = inkChosen(); $('inkPrev').style.color = c || ''; $('thInk').disabled = !c; }
 $('thInkOn').onchange = showInkPrev; $('thInk').oninput = showInkPrev;
+const gInkChosen = () => $('thGInkOn').value === '1' ? $('thGInk').value : '';
+function showGInkPrev() { const c = gInkChosen(); $('gInkPrev').style.color = c || ''; $('thGInk').disabled = !c; }
+$('thGInkOn').onchange = showGInkPrev; $('thGInk').oninput = showGInkPrev;
 const previewBar = () => applyBar($('thBarBg').value, $('thBarInk').value);
 $('thBarBg').oninput = previewBar; $('thBarInk').oninput = previewBar;
 $('btnBarDef').onclick = () => { $('thBarBg').value = BAR_DEF.bg; $('thBarInk').value = BAR_DEF.ink; previewBar(); };
 $('btnThSave').onclick = e => run(e.target, async () => {
-  const obj = { ...getSettings(), theme: $('thTheme').value, fx: $('thFx').value === '1', saleInk: inkChosen(), barBg: $('thBarBg').value, barInk: $('thBarInk').value };
+  const obj = { ...getSettings(), theme: $('thTheme').value, fx: $('thFx').value === '1', saleInk: inkChosen(), guestInk: gInkChosen(), barBg: $('thBarBg').value, barInk: $('thBarInk').value };
   SETTINGS = normSettings(obj); store.set(SET_KEY, JSON.stringify(obj)); applyTheme(SETTINGS.theme, SETTINGS.fx);
   let synced = true, why = ''; try { await api('saveShopSettings', obj); } catch (err) { synced = false; why = err.message; }
   toast(synced ? 'Đã đổi giao diện cho mọi thiết bị.' : 'Đã đổi trên máy này nhưng CHƯA đồng bộ: ' + why, !synced);
@@ -1821,7 +1835,7 @@ function gCalc() {
 function gDraw() {
   const left = G.menu.filter(m => !(m.id in G.cart)), pk = $('gPick');
   pk.disabled = !left.length;
-  pk.innerHTML = `<option value="">${left.length ? '— Chọn món để thêm —' : 'Đã chọn hết các món'}</option>` + left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} – ${money(m.price)}đ</option>`).join('');
+  pk.innerHTML = `<option value="">${left.length ? '— Chọn món —' : 'Đã chọn hết các món'}</option>` + left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} – ${money(m.price)}đ</option>`).join('');
   const ids = Object.keys(G.cart);
   $('gCart').innerHTML = ids.length ? `<table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
     return `<tr><td class="nm">${esc(m.name)}</td><td><span class="qty"><button data-g="-" data-id="${esc(id)}">−</button>${G.cart[id]}<button data-g="+" data-id="${esc(id)}">+</button></span></td><td class="n">${money(m.price * G.cart[id])}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chọn món ở trên để thêm.</div>';
@@ -1852,12 +1866,10 @@ function gRender() {
     <div class="row one"><div style="flex:1.25"><label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}"></div>
       <div><label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}"></div></div>
     <label>Địa chỉ *</label>
-    <input id="gAddr" maxlength="190" autocomplete="street-address" placeholder="Số nhà, đường, phường/xã…" value="${esc(G.addr)}">
+    <div class="g1"><input id="gAddr" maxlength="190" autocomplete="street-address" placeholder="Số nhà, đường, phường/xã…" value="${esc(G.addr)}"><button class="btn ghost sm" id="gGpsBtn" data-g="gps">📍 Bật GPS</button></div>
     <div id="gGpsMsg" class="gps ${G.gps ? 'ok' : 'err'}">${G.gps ? '✅ Đã xác định vị trí của bạn.' : (G.gpsMsg || '⚠️ Bắt buộc bật GPS và cho phép truy cập vị trí thì mới đặt món được.')}</div>
-    <button class="btn ghost sm" id="gGpsBtn" data-g="gps" style="width:100%;margin-top:6px">📍 Bật GPS &amp; lấy vị trí (bắt buộc)</button>
     </details>
-    <label>Bàn *</label><select id="gTable" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select><div id="gTableMsg" class="gps err" hidden></div>
-    <h2 style="margin-top:14px">Thực đơn</h2><select id="gPick" style="font-size:16px;padding:11px 9px"></select>
+    <div class="row one"><div><label>Bàn *</label><select id="gTable" style="font-size:16px;padding:11px 9px" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select></div><div><label>Thực đơn</label><select id="gPick" style="font-size:16px;padding:11px 9px"></select></div></div><div id="gTableMsg" class="gps err" hidden></div>
     <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
     <button class="btn" id="gPayBtn" style="width:100%;margin-top:12px">${G.editId ? 'Cập nhật đơn' : 'Đặt món'}</button>
@@ -1978,12 +1990,21 @@ function gSend(btn, paid) {
     G.cart = {}; G.note = ''; G.method = ''; gClose(); gRender(); toast('Đã gửi! Vui lòng chờ nhân viên xác nhận.');
   });
 }
+const GW = ['Vui', 'Vui lòng', 'Vui lòng đợi', 'Vui lòng đợi trong', 'Vui lòng đợi trong ít', 'Vui lòng đợi trong ít phút.', 'Vui lòng đợi trong ít phút..', 'Vui lòng đợi trong ít phút...'];
+let gwI = 0, gwT = null;
+function gwTick() {   // chữ "Vui lòng đợi trong ít phút..." chạy dần từng chữ cho tới khi tải xong
+  const el = $('gWaitTxt'), ld = $('gLoad'), w = $('gWait');
+  if (!el || !ld || ld.hidden || (w && w.hidden)) { clearTimeout(gwT); return; }
+  el.textContent = GW[gwI]; gwI = (gwI + 1) % GW.length;
+  gwT = setTimeout(gwTick, gwI === 0 ? 1100 : 450);
+}
 async function guestInit() {
-  $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false;
+  $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false; gwTick();
   try {
     const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || []; G.busy = d.busy || {};
     try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = String(sv.addr || '').replace(/\s*\(\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+\s*\)\s*$/, ''); } catch (e) {}
     $('gShop').textContent = d.shop || 'Cửa hàng'; $('gLoad').hidden = true; $('gHead').hidden = false;
+    if (/^#[0-9a-f]{6}$/i.test(d.ink || '')) $('guest').style.setProperty('--gInk', d.ink);
     if (d.address) { $('gAddrShop').textContent = d.address; $('gAddrShop').hidden = false; }
     const b = GQ.get('ban'); if (b && d.tables.includes(b)) { if (G.busy[b]) toast(b + ' ' + G.busy[b] + '. Vui lòng chọn bàn khác.', true); else G.table = b; }
     gRender(); setInterval(gPoll, 8000); setInterval(gSyncTables, 10000);
