@@ -232,8 +232,8 @@
   </div>
   <div class="row" style="align-items:center;margin-top:18px"><h2 id="heldTitle">Hóa đơn đang treo</h2><button class="btn ghost sm" id="btnHeldRefresh" style="flex:0 0 auto">Làm mới</button></div>
   <div id="heldList" class="wrap"></div>
-  <div class="row" style="align-items:center;margin-top:18px"><h2 id="guestTitle">Khách đặt món</h2><button class="btn ghost sm" id="btnGuestRefresh" style="flex:0 0 auto">Làm mới</button></div>
-  <div class="row adm" hidden style="margin-bottom:6px"><button class="btn ghost sm" id="btnGuestAll">Xem cả đơn đã xử lý</button></div>
+  <h2 id="guestTitle" style="margin:22px 0 8px;font-size:20px;font-weight:800;text-transform:uppercase;text-align:center;letter-spacing:.3px">ĐƠN HÀNG CỦA KHÁCH ĐẶT MÓN ONLINE</h2>
+  <div class="row" style="flex-wrap:nowrap;gap:8px;margin-bottom:8px"><button class="btn ghost sm" id="btnGuestRefresh" style="flex:1 1 0;min-width:0;white-space:nowrap">Làm mới</button><button class="btn ghost sm adm" hidden id="btnGuestAll" style="flex:1 1 0;min-width:0;white-space:nowrap">Xem cả đơn đã xử lý</button></div>
   <div id="guestList" class="wrap"></div>
 </section>
 
@@ -2099,7 +2099,7 @@ async function loadGuest(silent) {
     const r = await api('listGuestOrders', guestAll), admin = USER && USER.role === 'ADMIN'; guestOn = r.enabled;
     const pend = r.orders.filter(o => o.status === 'CHO').length;
     pendingTables = new Set(r.orders.filter(o => o.status === 'CHO').map(o => o.table)); fillTables();
-    $('guestTitle').textContent = `Khách đặt món (${pend} chờ duyệt)`;
+    $('guestTitle').textContent = `ĐƠN HÀNG CỦA KHÁCH ĐẶT MÓN ONLINE (${pend} CHỜ DUYỆT)`;
     if (guestSeen >= 0 && pend > guestSeen) { beep(); toast('Có đơn khách đặt mới!'); }
     guestSeen = pend;
     // Khách sửa đơn: máy chủ trả r.edits (cả đơn đã duyệt); nếu chưa cập nhật máy chủ thì dùng cờ edited của các đơn đang hiển thị
