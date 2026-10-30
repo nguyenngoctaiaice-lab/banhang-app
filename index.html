@@ -33,7 +33,8 @@
   #sale .saleCard { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
   #sale .saleCard + .saleCard { margin-top:18px; }
   #guestTitle { margin-top:2px !important; }
-  #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  #guest { max-width:520px; margin:0 auto; padding:14px 14px calc(110px + env(safe-area-inset-bottom,0px)); }
+  #guest .gmoi { text-align:center; font-weight:600; margin:6px 0 2px; } #guest .ghd { text-align:center; font-weight:700; margin:18px 0 6px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
   .gcard .gl { display:flex; justify-content:flex-start; align-items:center; gap:12px; padding:6px 0; } .gcard .gl > span:first-child { flex:0 1 auto; min-width:0; } .gcard .gl > span:nth-child(2) { display:flex; align-items:center; gap:6px; white-space:nowrap; } .gcard .gl .gp { white-space:nowrap; font-weight:700; margin-left:4px; }
   #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
   #guest .ghead { text-align:center; margin:0 0 10px; } #guest .ghead .shop { font-weight:700; font-size:20px; line-height:1.25; } #guest .ghead .sub { font-size:15px; font-weight:400; margin-top:2px; } #guest .ghead .ttl { font-weight:700; font-size:16px; margin-top:8px; color:var(--gInk,var(--accent)); }
@@ -178,7 +179,7 @@
 <body>
 
 <!-- KHÁCH ĐẶT MÓN -->
-<div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig">ĐẶT ĐỒ ĂN ONLINE</div><div class="gwait" id="gWait"><span class="gwg">Vui lòng đợi trong ít phút...</span><span class="gwl" id="gWaitTxt"></span></div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
+<div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig" id="gBig">ĐANG TẢI…</div><div class="gwait" id="gWait"><span class="gwg">Vui lòng đợi trong ít phút...</span><span class="gwl" id="gWaitTxt"></span></div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
 
 <!-- ĐĂNG NHẬP -->
 <div id="login" hidden>
@@ -360,7 +361,7 @@
         <select id="thGInkOn"><option value="0">Mặc định (xanh theo giao diện)</option><option value="1">Chọn màu riêng</option></select></div>
       <div><label>Chọn màu</label><input type="color" id="thGInk" value="#0f5c5c" style="height:40px;padding:2px"></div>
     </div>
-    <div id="gInkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff;font-weight:700;text-align:center;color:var(--accent)">ĐẶT ĐỒ ĂN ONLINE · ĐƠN HÀNG ONLINE · Thông tin khách hàng</div>
+    <div id="gInkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff;font-weight:700;text-align:center;color:var(--accent)">TÊN QUÁN · ĐƠN HÀNG ONLINE · Thông tin khách hàng</div>
     <div id="inkPrev" style="margin-top:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:#fff">Chữ mẫu: Ốc vặn — 30.000 · Tiền hàng · Thành tiền</div>
     <div class="row" style="margin-top:10px;align-items:end">
       <div><label>Màu nền thanh chữ chạy khuyến mại</label><input type="color" id="thBarBg" value="#1f8f3f" style="height:40px;padding:2px"></div>
@@ -1850,7 +1851,7 @@ function gDraw() {
   pk.disabled = !left.length;
   pk.innerHTML = `<option value="">${left.length ? '— Chọn món —' : 'Đã chọn hết các món'}</option>` + left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} – ${money(m.price)}đ</option>`).join('');
   const ids = Object.keys(G.cart);
-  $('gCart').innerHTML = ids.length ? `<table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
+  $('gCart').innerHTML = ids.length ? `<div class="ghd">Thông tin đơn hàng đã đặt</div><table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
     return `<tr><td class="nm">${esc(m.name)}</td><td><span class="qty"><button data-g="-" data-id="${esc(id)}">−</button>${G.cart[id]}<button data-g="+" data-id="${esc(id)}">+</button></span></td><td class="n">${money(m.price * G.cart[id])}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chọn món ở trên để thêm.</div>';
   const c = gCalc();
   $('gTots').innerHTML = `<div class="tot"><span>Tiền hàng</span><span>${money(c.gross)}</span></div>` +
@@ -1882,6 +1883,7 @@ function gRender() {
     <div class="g1"><input id="gAddr" maxlength="190" autocomplete="street-address" placeholder="Số nhà, đường, phường/xã…" value="${esc(G.addr)}"><button class="btn ghost sm" id="gGpsBtn" data-g="gps">📍 Bật GPS</button></div>
     <div id="gGpsMsg" class="gps ${G.gps ? 'ok' : 'err'}">${G.gps ? '✅ Đã xác định vị trí của bạn.' : (G.gpsMsg || '⚠️ Bắt buộc bật GPS và cho phép truy cập vị trí thì mới đặt món được.')}</div>
     </details>
+    <div class="gmoi">Mời bạn chọn bàn và chọn món</div>
     <div class="row one"><div><label>Bàn *</label><select id="gTable" style="font-size:16px;padding:11px 9px" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select></div><div><label>Thực đơn</label><select id="gPick" style="font-size:16px;padding:11px 9px"></select></div></div><div id="gTableMsg" class="gps err" hidden></div>
     <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
@@ -1961,7 +1963,7 @@ async function gPoll() {
 }
 /* Cửa sổ nổi (thanh toán / xem QR) */
 function gOverlay(html) {
-  let o = $('gOv'); if (!o) { o = document.createElement('div'); o.id = 'gOv'; o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;overflow:auto;padding:12px'; document.body.appendChild(o); }
+  let o = $('gOv'); if (!o) { o = document.createElement('div'); o.id = 'gOv'; o.style.cssText = 'position:fixed;left:0;right:0;top:0;height:100%;height:100dvh;box-sizing:border-box;background:rgba(0,0,0,.5);z-index:50;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:12px 12px calc(120px + env(safe-area-inset-bottom,0px))'; document.body.appendChild(o); }
   o.innerHTML = `<div style="background:#fff;max-width:420px;margin:0 auto;border-radius:10px;padding:14px">${html}</div>`; o.hidden = false;
 }
 const gClose = () => { const o = $('gOv'); if (o) o.hidden = true; };
@@ -2026,10 +2028,11 @@ function gwTick() {   // chữ "Vui lòng đợi trong ít phút..." chạy dầ
 }
 async function guestInit() {
   $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false; gwTick();
+  try { const cs = store.get('bh_gshop'); if (cs) $('gBig').textContent = String(cs).toUpperCase(); } catch (e) {}   // hiện ngay tên quán đã lưu từ lần mở trước
   try {
     const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || []; G.busy = d.busy || {};
     try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = String(sv.addr || '').replace(/\s*\(\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+\s*\)\s*$/, ''); } catch (e) {}
-    $('gShop').textContent = d.shop || 'Cửa hàng'; $('gLoad').hidden = true; $('gHead').hidden = false;
+    $('gShop').textContent = d.shop || 'Cửa hàng'; if (d.shop) { try { store.set('bh_gshop', d.shop); } catch (e) {} document.title = d.shop; } $('gLoad').hidden = true; $('gHead').hidden = false;
     if (/^#[0-9a-f]{6}$/i.test(d.ink || '')) $('guest').style.setProperty('--gInk', d.ink);
     if (d.address) { $('gAddrShop').textContent = d.address; $('gAddrShop').hidden = false; }
     const b = GQ.get('ban'); if (b && d.tables.includes(b)) { if (G.busy[b]) toast(b + ' ' + G.busy[b] + '. Vui lòng chọn bàn khác.', true); else G.table = b; }
