@@ -39,6 +39,12 @@
   .menu button { text-align:left; padding:10px; border:1px solid var(--line); background:#fff; border-radius:8px; font:inherit; cursor:pointer; }
   .menu small { display:block; color:var(--muted); }
   #menuPick { font-size:16px; padding:11px 9px; }
+  /* Tên món dài: ô chọn / giỏ hàng chỉ hiện đến hết chỗ rồi hiện "…", không phá bố cục. Hóa đơn xem / in vẫn đủ tên. */
+  select { max-width:100%; min-width:0; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
+  .split > div { min-width:0; }
+  #cart table { table-layout:auto; }
+  #cart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #cart td.n { white-space:nowrap; }
   .wrap { overflow-x:auto; }
   tr.hrow { cursor:pointer; } tr.hrow:hover td, tr.hrow:active td { background:var(--soft); }
   table.zebra tr:nth-child(odd):not(:first-child) td { background:var(--soft); }
@@ -97,7 +103,27 @@
   #findBox { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:20; display:flex; align-items:flex-start; justify-content:center; padding:4vh 8px; overflow:auto; }
   #findBox .dlg { background:var(--card); border-radius:10px; padding:14px; width:100%; max-width:640px; }
   @media print { #findBox { display:none !important; } }
-  @media print { @page { margin:4mm; } body * { visibility:hidden; } #receipt, #receipt * { visibility:visible; } #receipt { position:absolute; left:0; top:0; width:100%; max-width:none; border:0; border-radius:0; } #receipt .noprint, #receipt .noprint * { display:none !important; } }
+  /* In máy in nhiệt Xprinter XP-Q80C (khổ 80mm, vùng in ~72mm): chỉ in hóa đơn, ẩn hết phần còn lại để không sinh trang thừa.
+     Chiều cao tờ giấy được đặt đúng bằng chiều dài hóa đơn (hàm fitPaper) nên luôn ra 1 tờ liền, không ngắt trang, không chồng chữ. */
+  @media print {
+    @page { size:80mm auto; margin:0; }
+    html, body { height:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; background:#fff !important; overflow:visible !important; }
+    body *:not(#receipt):not(#receipt *):not(:has(#receipt)) { display:none !important; }
+    body *:has(#receipt) { margin:0 !important; padding:0 !important; border:0 !important; background:none !important; max-width:none !important; width:auto !important; position:static !important; box-shadow:none !important; }
+    #receipt { position:static !important; width:72mm !important; max-width:72mm !important; margin:0 !important; padding:2mm 1mm !important; box-sizing:border-box; border:0 !important; border-radius:0 !important; color:#000 !important; break-inside:avoid; page-break-inside:avoid; }
+    #receipt, #receipt * { color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    #receipt tr, #receipt .rr, #receipt .grand, #receipt .qr { break-inside:avoid; page-break-inside:avoid; }
+    #receipt .noprint, #receipt .noprint * { display:none !important; }
+  }
+  body.pmeasure #receipt { width:72mm !important; max-width:72mm !important; padding:2mm 1mm !important; box-sizing:border-box !important; border:0 !important; }
+  body.pmeasure #receipt .noprint { display:none !important; }
+  /* Ô nhập tiền khách đưa (chỉ hiện trên màn hình, không in) */
+  .paybox { margin-top:10px; padding-top:8px; border-top:1px dashed #555; }
+  .paybox .seg { display:flex; gap:8px; } .paybox .seg > button { flex:1; }
+  #cashPanel input { text-align:right; text-align-last:right; font-size:18px; font-weight:700; margin-top:4px; }
+  #cashPanel .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; } #cashPanel .quick button { flex:1 1 auto; }
+  #cashChange { display:flex; justify-content:space-between; font-size:18px; font-weight:700; margin-top:8px; }
+  #cashChange.short { color:#d32f2f; }
   .promoBar { position:relative; overflow:hidden; height:42px; margin-bottom:10px; border-radius:8px; background:linear-gradient(90deg,var(--bar1),var(--bar2)); color:var(--barInk); box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
   .promoBar span { position:absolute; top:0; left:100%; line-height:42px; font-size:21px; font-weight:800; white-space:nowrap; text-shadow:0 1px 2px rgba(0,0,0,.35); animation:promoRun 18s linear infinite; }
   @keyframes promoRun { from { left:100%; transform:translateX(0); } to { left:0; transform:translateX(-100%); } }
@@ -567,7 +593,7 @@ function renderCart() {
   tickClock();
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
     const m = DATA.menu.find(x => String(x.id) === String(id)), amt = m.price * cart[id]; gross += amt;
-    return `<tr><td>${esc(m.name)}</td>
+    return `<tr><td class="nm" title="${esc(m.name)}">${esc(m.name)}</td>
       <td><span class="qty"><button data-d="-1" data-id="${esc(id)}">−</button>${cart[id]}<button data-d="1" data-id="${esc(id)}">+</button></span></td>
       <td class="n">${money(amt)}</td></tr>`;
   }).join('')}</table>` : '<div class="empty">Chạm vào món để thêm.</div>';
@@ -615,6 +641,7 @@ $('btnHold').onclick = async () => {
 $('btnPay').onclick = async () => {
   let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
   const sn = snapshotOrder(), c = calcReceipt(payload.items, payload.custType);
+  payState = { method: 'bank', given: 0, grand: 0 };
   showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN') }, { pending: true });
   resetOrder();
   try {
@@ -677,10 +704,20 @@ function showReceipt(r, opt) {
     <div class="rr b"><span>Tiền thuế (${esc(st.taxPct)}%)</span><span>${money(tax)}</span></div>` : ''}
     <hr>
     <div class="grand"><span>Tổng thanh toán</span><span>${money(grand)}</span></div>
+    <div id="cashLines"></div>
+    ${opt.reprint ? '' : `<div class="paybox noprint">
+      <div class="seg"><button class="btn sm" data-a="pm" data-m="bank">Chuyển khoản</button><button class="btn sm ghost" data-a="pm" data-m="cash">Tiền mặt</button></div>
+      <div id="cashPanel" hidden>
+        <label style="text-align:left">Tiền khách đưa</label>
+        <input id="cashIn" inputmode="numeric" autocomplete="off" placeholder="Nhập số tiền khách đưa" value="${payState.given ? esc(Number(payState.given).toLocaleString('vi-VN')) : ''}">
+        <div class="quick"><button class="btn ghost sm" data-a="qk" data-v="0">Đủ tiền</button>${[50000, 100000, 200000, 500000].map(v => `<button class="btn ghost sm" data-a="qk" data-v="${v}">${v.toLocaleString('vi-VN')}</button>`).join('')}</div>
+        <div id="cashChange"></div>
+      </div></div>`}
     <div class="c"><div style="font-weight:700;margin-top:6px">Trân trọng cảm ơn</div>
+     <div id="bankBlock">
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
       ${opt.reprint ? '' : dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
-      <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div>
+      <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div></div>
     <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" ${opt.reprint ? '' : 'hidden'}>✓ ĐÃ THANH TOÁN</div>
     ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap">${opt.reprint ? '<button class="btn ghost sm" data-a="print">In hóa đơn</button>' : '<button class="btn sm" data-a="confirmprint">Xác nhận &amp; in</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
     <div id="sharePanel" class="noprint" ${opt.reprint ? '' : 'hidden'} style="margin-top:10px;padding-top:10px;border-top:1px dashed #555">
@@ -688,17 +725,45 @@ function showReceipt(r, opt) {
       <div class="row"><button class="btn sm" data-a="share">Chia sẻ (Zalo / Facebook…)</button></div>
     </div>`;
   lastReceipt = { r, text: receiptText(r, st, grand, when) };
+  payState.grand = grand; if (!opt.reprint) applyPay();
   if (dyn && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
     .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
 /* App Android (Capacitor): WebView không in/chia sẻ được như Chrome, nên gọi sang cầu nối gốc "AppBridge" */
 const appNat = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() ? C : null; };
 const appCall = (m, o) => { const C = appNat(); return C.nativePromise ? C.nativePromise('AppBridge', m, o || {}) : C.Plugins.AppBridge[m](o || {}); };
+function fitPaper() {
+  const el = $('receipt'); if (!el) return;
+  document.body.classList.add('pmeasure');
+  const h = el.getBoundingClientRect().height;
+  document.body.classList.remove('pmeasure');
+  const mm = Math.ceil(h * 25.4 / 96) + 8;   // +8mm chừa lề dưới để không bị tràn sang tờ 2
+  let st = document.getElementById('pageSize');
+  if (!st) { st = document.createElement('style'); st.id = 'pageSize'; document.head.appendChild(st); }
+  st.textContent = `@media print { @page { size:80mm ${mm}mm; margin:0; } }`;
+}
 async function printNow() {
+  try { fitPaper(); } catch (e) {}
   if (appNat()) { try { return await appCall('print'); } catch (e) { toast('Không mở được chức năng in: ' + ((e && e.message) || e), true); return; } }
   window.print();
 }
 let lastReceipt = null;
+let payState = { method: 'bank', given: 0, grand: 0 };   // cách thanh toán của hóa đơn đang hiện (chỉ để thu ngân tính tiền thừa)
+const cashOk = () => !(payState.method === 'cash' && payState.given > 0 && payState.given < payState.grand);
+const cashLinesHtml = (d, g, withMethod) => (withMethod ? `<div class="rr b"><span>Hình thức</span><span>Tiền mặt</span></div>` : '') +
+  (d >= g && d > 0 ? `<div class="rr"><span>Tiền khách đưa</span><span>${money(d)}</span></div><div class="rr b"><span>Tiền trả lại</span><span>${money(d - g)}</span></div>` : '');
+function applyPay() {
+  const rc = $('receipt'), cash = payState.method === 'cash', g = payState.grand, d = payState.given;
+  const q = x => rc.querySelector(x); if (!q('#cashPanel')) return;
+  q('#cashPanel').hidden = !cash;
+  if (q('#bankBlock')) q('#bankBlock').hidden = cash;
+  rc.querySelectorAll('[data-a="pm"]').forEach(b => b.classList.toggle('ghost', b.dataset.m !== payState.method));
+  const ch = q('#cashChange');
+  if (d <= 0) { ch.className = ''; ch.innerHTML = `<span>Tiền trả lại</span><span>—</span>`; }
+  else if (d < g) { ch.className = 'short'; ch.innerHTML = `<span>Còn thiếu</span><span>${money(g - d)}</span>`; }
+  else { ch.className = ''; ch.innerHTML = `<span>Tiền trả lại</span><span>${money(d - g)}</span>`; }
+  q('#cashLines').innerHTML = cash ? cashLinesHtml(d, g, true) : '';
+}
 
 /* In hóa đơn: máy chủ đếm số lần in. Lần 1 = BẢN GỐC, các lần sau = IN LẠI LẦN 1, 2, 3… (in dưới dòng Số HD) */
 async function doPrint() {
@@ -829,11 +894,26 @@ async function shareReceipt() {
   const ok = await copyText(text);
   toast(ok ? 'Đã sao chép nội dung hóa đơn, hãy dán vào Zalo.' : 'Máy này không hỗ trợ chia sẻ.', !ok);
 }
+$('receipt').addEventListener('input', e => {
+  if (e.target.id !== 'cashIn') return;
+  const n = Number(e.target.value.replace(/\D/g, '')) || 0;
+  payState.given = n; e.target.value = n ? n.toLocaleString('vi-VN') : ''; applyPay();
+});
 $('receipt').addEventListener('click', e => {
   const a = e.target.dataset.a;
+  if (a === 'pm') { payState.method = e.target.dataset.m; applyPay(); if (payState.method === 'cash') { const i = $('cashIn'); if (i) i.focus(); } return; }
+  if (a === 'qk') { const v = Number(e.target.dataset.v); payState.given = v || payState.grand; const i = $('cashIn'); i.value = payState.given.toLocaleString('vi-VN'); applyPay(); return; }
+  if ((a === 'confirm' || a === 'confirmprint') && !cashOk()) return toast('Tiền khách đưa chưa đủ, còn thiếu ' + money(payState.grand - payState.given) + 'đ.', true);
   if (a === 'print') run(e.target, doPrint);
   if (a === 'close') $('receipt').hidden = true;
   if (a === 'confirm' || a === 'confirmprint') {
+    const rid = lastReceipt && lastReceipt.r && lastReceipt.r.id;
+    if (payState.method === 'cash' && payState.given > 0 && rid && rid !== '…') {   // lưu tiền khách đưa / tiền trả lại lên máy chủ
+      api('savePayment', rid, 'cash', payState.given, payState.given - payState.grand)
+        .catch(err => toast('Chưa lưu được tiền khách đưa lên máy chủ: ' + err.message, true));
+    }
+    const ci = $('cashIn'); if (ci) ci.readOnly = true;
+    $('receipt').querySelectorAll('[data-a="qk"],[data-a="pm"]').forEach(b => b.disabled = true);
     $('paidMark').hidden = false; $('sharePanel').hidden = false;
     $('receipt').querySelectorAll('[data-a="confirm"],[data-a="confirmprint"]').forEach(b => b.hidden = true);
     toast('Đã xác nhận thanh toán. Bạn có thể chia sẻ hóa đơn cho khách.');
@@ -909,6 +989,11 @@ async function viewInvoice(inv, inReport) {
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
     openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff }, { reprint: true, slot: !!(inReport && $('repSlot')) });
   $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
+  const rid = o.id || inv.id;   // hóa đơn tiền mặt: hiện lại tiền khách đưa / tiền trả lại đã lưu (máy chủ chưa hỗ trợ thì bỏ qua)
+  api('getPayment', rid).then(pm => {
+    const cl = $('cashLines'), g = payState.grand;
+    if (pm && pm.method === 'cash' && Number(pm.given) > 0 && cl && lastReceipt && lastReceipt.r.id === rid) cl.innerHTML = cashLinesHtml(Number(pm.given), g, true);
+  }).catch(() => {});
 }
 const viewOldInvoice = k => viewInvoice(findRows[k]);
 $('btnFind').onclick = openFind;
