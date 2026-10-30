@@ -621,9 +621,14 @@ let vipAuto = null, vipCode = '';
 function loadJsQR() {
   return new Promise((ok, no) => {
     if (window.jsQR) return ok(window.jsQR);
-    const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
-    sc.onload = () => ok(window.jsQR); sc.onerror = () => no(new Error('Không tải được bộ quét QR (kiểm tra mạng).'));
-    document.head.appendChild(sc);
+    const urls = ['https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js', 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'];
+    const tryLoad = i => {
+      if (i >= urls.length) return no(new Error('Không tải được bộ quét QR (kiểm tra mạng).'));
+      const sc = document.createElement('script'); sc.src = urls[i];
+      sc.onload = () => window.jsQR ? ok(window.jsQR) : tryLoad(i + 1); sc.onerror = () => tryLoad(i + 1);
+      document.head.appendChild(sc);
+    };
+    tryLoad(0);
   });
 }
 function scanVipCode() {   // trả về nội dung mã QR hợp lệ, hoặc null nếu hủy
@@ -633,34 +638,62 @@ function scanVipCode() {   // trả về nội dung mã QR hợp lệ, hoặc nu
     ov.innerHTML = `<div style="font-weight:700;font-size:18px">Quét mã QR của khách VIP</div>
       <video playsinline muted style="width:min(90vw,360px);border-radius:10px;background:#000"></video>
       <div class="vmsg" style="min-height:20px">Đang mở camera…</div>
-      <div style="display:flex;gap:8px"><label class="btn ghost sm" style="cursor:pointer;display:inline-block">Chọn ảnh QR<input type="file" accept="image/*" hidden></label><button class="btn ghost sm vcancel">Hủy</button></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><label class="btn sm" style="cursor:pointer;display:inline-block">Chụp QR bằng camera máy<input type="file" accept="image/*" capture="environment" hidden></label><label class="btn ghost sm" style="cursor:pointer;display:inline-block">Chọn ảnh QR<input type="file" accept="image/*" hidden></label><button class="btn ghost sm vcancel">Hủy</button></div>`;
     document.body.appendChild(ov);
     const vid = ov.querySelector('video'), msg = ov.querySelector('.vmsg'); let stream = null, done = false, busy = false;
     const finish = v => { if (done) return; done = true; if (stream) stream.getTracks().forEach(t => t.stop()); ov.remove(); resolve(v); };
     ov.querySelector('.vcancel').onclick = () => finish(null);
     const check = async text => {
       if (busy || done) return; busy = true; msg.textContent = 'Đang kiểm tra mã…';
-      try { if (await api('checkVip', text)) return finish(text); msg.textContent = 'Mã QR không đúng. Hãy quét lại mã của khách VIP.'; }
+      try { if (await api('checkVip', text)) return finish(text); msg.textContent = 'Đã đọc được mã (' + text.length + ' ký tự) nhưng không khớp mã VIP trên máy chủ. Hãy quét lại mã của khách VIP.'; }
       catch (e) { msg.textContent = e.message; }
       setTimeout(() => { busy = false; }, 1500);
     };
     let jsQR; try { jsQR = await loadJsQR(); } catch (e) { msg.textContent = e.message; }
     const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
-    const decode = (src, w, h) => { cv.width = w; cv.height = h; cx.drawImage(src, 0, 0, w, h); const r = jsQR(cx.getImageData(0, 0, w, h).data, w, h); return r && r.data; };
-    ov.querySelector('input').onchange = e => {
-      const f = e.target.files[0]; if (!f || !jsQR) return;
-      const im = new Image(); im.onload = () => { const t = decode(im, im.naturalWidth, im.naturalHeight); t ? check(t) : (msg.textContent = 'Không đọc được mã QR trong ảnh.'); URL.revokeObjectURL(im.src); };
-      im.src = URL.createObjectURL(f); e.target.value = '';
+    let det = null; try { if ('BarcodeDetector' in window) det = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) {}
+    // Thử bộ quét có sẵn của máy trước, sau đó jsQR ở nhiều cỡ ảnh (ảnh quá lớn/quá nhỏ đều dễ làm jsQR trượt với mã dày như VietQR)
+    const decode = async (src, w, h, deep) => {
+      if (det) { try { const r = await det.detect(src); if (r && r.length && r[0].rawValue) return r[0].rawValue; } catch (e) {} }
+      if (!jsQR || !w || !h) return null;
+      const tried = {};
+      for (const m of (deep ? [1000, 700, 500, 360, 1600] : [720])) {
+        const k = Math.min(1, m / Math.max(w, h)), cw = Math.max(1, Math.round(w * k)), ch = Math.max(1, Math.round(h * k));
+        if (tried[cw + 'x' + ch]) continue; tried[cw + 'x' + ch] = 1;
+        cv.width = cw; cv.height = ch; cx.fillStyle = '#fff'; cx.fillRect(0, 0, cw, ch); cx.drawImage(src, 0, 0, cw, ch);   // nền trắng: ảnh PNG trong suốt không bị đen
+        const r = jsQR(cx.getImageData(0, 0, cw, ch).data, cw, ch, { inversionAttempts: 'attemptBoth' });
+        if (r && r.data) return r.data;
+        await new Promise(z => setTimeout(z, 0));
+      }
+      return null;
     };
+    ov.querySelectorAll('input').forEach(inp => inp.onchange = e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      if (!jsQR && !det) { msg.textContent = 'Chưa tải được bộ quét QR, hãy kiểm tra mạng rồi thử lại.'; return; }
+      msg.textContent = 'Đang đọc ảnh…';
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = async () => {
+        let t = null; try { t = await decode(im, im.naturalWidth, im.naturalHeight, true); } catch (er) {}
+        URL.revokeObjectURL(url);
+        if (t) { busy = false; check(t); } else msg.textContent = 'Không đọc được mã QR trong ảnh. Hãy chọn ảnh rõ nét, thấy trọn mã và không bị chói/lóa.';
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); msg.textContent = 'Không mở được ảnh này.'; };
+      im.src = url;
+    });
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('x'), { name: 'NoApi' });
+      try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } }); }
+      catch (e1) { if (e1 && e1.name === 'NotAllowedError') throw e1; stream = await navigator.mediaDevices.getUserMedia({ video: true }); }
       if (done) return stream.getTracks().forEach(t => t.stop());
       vid.srcObject = stream; await vid.play(); if (!busy) msg.textContent = 'Đưa mã QR vào khung hình…';
-      const tick = () => { if (done) return;
-        if (jsQR && !busy && vid.videoWidth) { const t = decode(vid, vid.videoWidth, vid.videoHeight); if (t) check(t); }
-        setTimeout(tick, 200); };
+      const tick = async () => { if (done) return;
+        if (!busy && vid.videoWidth) { try { const t = await decode(vid, vid.videoWidth, vid.videoHeight, false); if (t) check(t); } catch (er) {} }
+        setTimeout(tick, 250); };
       tick();
-    } catch (e) { vid.hidden = true; msg.textContent = 'Không mở được camera. Bạn có thể bấm "Chọn ảnh QR".'; }
+    } catch (e) {
+      vid.hidden = true; const n = (e && e.name) || '';
+      msg.textContent = (n === 'NotAllowedError' ? 'Chưa được cấp quyền camera (vào Cài đặt > Ứng dụng/Trình duyệt > Quyền > Camera để bật). ' : n === 'NotFoundError' ? 'Máy không tìm thấy camera. ' : n === 'NotReadableError' ? 'Camera đang được ứng dụng khác dùng. ' : n === 'NoApi' ? 'Trình duyệt/ứng dụng này không hỗ trợ mở camera trực tiếp. ' : 'Không mở được camera (' + (n || 'lỗi') + '). ') + 'Bấm "Chụp QR bằng camera máy" để chụp ảnh mã.';
+    }
   });
 }
 async function onCustChange() {
