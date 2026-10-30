@@ -1948,9 +1948,18 @@ function gPayTxt(s) {
   return s.pay === 'DA_NHAN' ? '✅ Quán đã nhận tiền chuyển khoản' : s.pay === 'KHACH_BAO' ? '⏳ Đã báo chuyển khoản, chờ quán xác nhận' : '❌ Chưa chuyển khoản';
 }
 async function gPoll() {
-  const l = gSentList(), box = $('gSent'); if (!l.length || !box) return;
+  let l = gSentList(); const box = $('gSent'); if (!box) return;
+  if (!l.length) { box.className = 'empty'; box.textContent = 'Chưa có.'; const d0 = $('gDoneBox'); if (d0) d0.innerHTML = ''; return; }
   try {
     const st = await gcall('guestStatus', l.map(x => x.id)); box.className = ''; G.st = st;
+    {   // đơn đã hoàn thành / bị từ chối: ghi nhớ giờ, tự xóa khỏi máy khách sau 1 ngày
+      const now = Date.now(); let ch = false;
+      l = l.filter(x => { const s0 = st[x.id]; if (!s0 || !(s0.done || s0.st === 'TU_CHOI')) return true;
+        if (!x.doneAt) { x.doneAt = now; ch = true; }
+        if (now - x.doneAt > 864e5) { ch = true; return false; } return true; });
+      if (ch) store.set('bh_gsent', JSON.stringify(l));
+      if (!l.length) { box.className = 'empty'; box.textContent = 'Chưa có.'; const d1 = $('gDoneBox'); if (d1) d1.innerHTML = ''; return; }
+    }
     const dn = $('gDoneBox'), fresh = l.filter(x => st[x.id] && st[x.id].done && !st[x.id].rating);
     if (dn) dn.innerHTML = fresh.map(x => `<div class="gdone">🎉 <b>Đơn ${esc(x.t.split(' · ')[0])} (${esc(x.id)}) đã hoàn thành, thanh toán thành công!</b><br>Cảm ơn quý khách. Hãy dành vài giây đánh giá dịch vụ nhé.<div style="margin-top:6px"><button class="btn sm" data-g="rate" data-id="${esc(x.id)}">⭐ Đánh giá dịch vụ</button></div></div>`).join('');
     l.forEach(x => { const s = st[x.id]; if (s && s.done && !G.doneSeen[x.id]) { G.doneSeen[x.id] = 1; if (!s.rating) toast('Đơn của bạn đã hoàn thành. Cảm ơn quý khách!'); } });
@@ -1959,7 +1968,7 @@ async function gPoll() {
       const canEdit = (s.st === 'CHO' || s.st === 'DA_DUYET') && pay !== 'KHACH_BAO' && pay !== 'DA_NHAN' && !s.ed && !s.done;
       const op = G.sentOpen[x.id] !== undefined ? G.sentOpen[x.id] : i === 0;   // mặc định chỉ đơn gần nhất mở
       return `<details class="gcard gs" data-sid="${esc(x.id)}" ${op ? 'open' : ''}><summary><b>${esc(x.t)}</b> <small>${esc(x.id)}</small></summary><div>${s.done ? '🎉 <b>Đơn đã hoàn thành – thanh toán thành công</b>' : (G_ST[s.st] || '—')}</div><div>${gPayTxt({ method: m, pay: pay })}</div>${s.done ? (s.rating ? `<div>Đánh giá của bạn: ${gStars(s.rating)}${s.review ? ` <small>“${esc(s.review)}”</small>` : ''}</div>` : `<div style="margin-top:6px"><button class="btn sm" data-g="rate" data-id="${esc(x.id)}">⭐ Đánh giá dịch vụ</button></div>`) : ''}${s.ed ? '<div><small>✏️ Hôm nay bạn đã sửa đơn này (tối đa 1 lần/ngày).</small></div>' : ''}
-        ${need ? `<div class="g2"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}${canEdit ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="edit" data-id="${esc(x.id)}">✏️ Sửa món</button></div>` : ''}</details>`; }).join('');
+        ${need ? `<div class="g2"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}${(s.done || s.st === 'TU_CHOI') ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="del" data-id="${esc(x.id)}">🗑️ Xóa đơn này khỏi máy</button> <small>(tự xóa sau 1 ngày)</small></div>` : ''}${canEdit ? `<div style="margin-top:6px"><button class="btn ghost sm" data-g="edit" data-id="${esc(x.id)}">✏️ Sửa món</button></div>` : ''}</details>`; }).join('');
   } catch (e) {}
 }
 /* Cửa sổ nổi (thanh toán / xem QR) */
@@ -2051,6 +2060,7 @@ document.addEventListener('click', e => {
     G.editId = id; G.table = s.table; G.note = s.note || ''; G.cart = {}; s.items.forEach(i => G.cart[i.id] = i.qty); gRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (g === 'edit-cancel') { G.editId = ''; G.cart = {}; G.note = ''; G.table = ''; gRender(); gSyncTables(); return; }
   if (g === 'gps') return gGps();
+  if (g === 'del') { if (!confirm('Xóa đơn này khỏi máy của bạn? (Không ảnh hưởng đến dữ liệu của quán)')) return; store.set('bh_gsent', JSON.stringify(gSentList().filter(x => x.id !== id))); return gPoll(); }
   if (g === 'rate') { G.rate = { id: id, n: 0, t: '' }; return gRateDialog(); }
   if (g === 'star') { const t = $('gRvText'); if (t && G.rate) G.rate.t = t.value; if (G.rate) G.rate.n = Number(b.dataset.n); return gRateDialog(); }
   if (g === 'rate-send') { const t = $('gRvText'); if (t && G.rate) G.rate.t = t.value; if (!G.rate || !G.rate.n) return toast('Hãy chọn số sao.', true);
