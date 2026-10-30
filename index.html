@@ -184,8 +184,10 @@
       <div class="inv"><b id="invNo">Hóa đơn mới</b><span id="invTime"></span></div>
       <div id="cart"></div>
       <div class="tot"><span>Tiền hàng</span><span id="tGross">0</span></div>
-      <div class="tot"><span id="tDiscLabel">Chiết khấu</span><span id="tDisc">0</span></div>
+      <div class="tot" id="tDiscRow" hidden><span id="tDiscLabel">Chiết khấu</span><span id="tDisc">0</span></div>
       <div class="tot" id="tPromoRow" hidden><span id="tPromoLabel">Khuyến mại</span><span id="tPromo">0</span></div>
+      <div class="tot" id="tPreRow" hidden><span>Tiền trước thuế</span><span id="tPre">0</span></div>
+      <div class="tot" id="tTaxRow" hidden><span id="tTaxLabel">Thuế</span><span id="tTax">0</span></div>
       <div class="tot big"><span>Thành tiền</span><span id="tTotal">0</span></div>
       <label>Ghi chú</label><input id="saleNote" placeholder="Không bắt buộc">
       <div class="row one" style="margin-top:12px"><button class="btn" id="btnPay">Thanh toán</button><button class="btn ghost" id="btnHold">Treo hóa đơn</button></div>
@@ -579,7 +581,8 @@ function tickClock() {
   $('invTime').textContent = cur.openTime ? 'Mở lúc ' + cur.openTime : new Date().toLocaleString('vi-VN');
 }
 setInterval(tickClock, 1000);
-function resetOrder() { cart = {}; cur = {}; $('saleNote').value = ''; fillTables(); renderCart(); }
+function resetOrder() { cart = {}; cur = {}; vipAuto = null; $('saleNote').value = ''; if (isVip($('saleCust').value)) $('saleCust').selectedIndex = 0;   // không để VIP "dính" sang hóa đơn sau
+  fillTables(); renderCart(); }
 function renderMenu() {
   const left = DATA.menu.filter(m => !(m.id in cart));
   $('menuPick').disabled = !left.length;
@@ -599,16 +602,28 @@ function renderCart() {
   }).join('')}</table>` : '<div class="empty">Chạm vào món để thêm.</div>';
   const p = discPct(), d = Math.round(gross * p / 100), pr = curPromo(), pa = pr ? Math.round((gross - d) * pr.pct / 100) : 0;
   $('tGross').textContent = money(gross); $('tDiscLabel').textContent = `Chiết khấu (${p}%)`;
+  $('tDiscRow').hidden = !(p > 0);   // khách vãng lai (0%) thì ẩn dòng chiết khấu
   $('tDisc').textContent = '-' + money(d);
   $('tPromoRow').hidden = !pa; if (pa) { $('tPromoLabel').textContent = `Khuyến mại: ${pr.name} (${pr.pct}%)`; $('tPromo').textContent = '-' + money(pa); }
-  $('tTotal').textContent = money(gross - d - pa);
+  const pre = gross - d - pa, taxPct = Number(getSettings().taxPct) || 0, tax = Math.round(pre * taxPct / 100);
+  $('tPreRow').hidden = $('tTaxRow').hidden = !(taxPct > 0);   // thuế luôn hiện khi có cài thuế
+  if (taxPct > 0) { $('tPre').textContent = money(pre); $('tTaxLabel').textContent = `Thuế (${taxPct}%)`; $('tTax').textContent = money(tax); }
+  $('tTotal').textContent = money(pre + tax);
 }
 $('menuPick').addEventListener('change', e => { const id = e.target.value; if (!id) return; cart[id] = 1; renderCart(); });
 $('cart').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   cart[b.dataset.id] += Number(b.dataset.d); if (cart[b.dataset.id] <= 0) delete cart[b.dataset.id]; renderCart();
 });
-$('saleCust').addEventListener('change', renderCart);
+/* Khách VIP: tự chọn tất cả món (giá thường), chiết khấu 100% nên thành tiền 0đ */
+const isVip = t => /vip/i.test(String(t || ''));
+let vipAuto = null;
+function onCustChange() {
+  if (isVip($('saleCust').value)) { DATA.menu.forEach(m => { if (!(m.id in cart)) cart[m.id] = 1; }); vipAuto = JSON.stringify(cart); }
+  else { if (vipAuto && JSON.stringify(cart) === vipAuto) cart = {}; vipAuto = null; }   // bỏ chọn VIP: xóa các món tự thêm nếu chưa chỉnh gì
+  renderCart();
+}
+$('saleCust').addEventListener('change', onCustChange);
 $('btnClear').onclick = resetOrder;
 
 function orderPayload() {
@@ -674,6 +689,7 @@ async function loadServerSettings() {
 }
 const dtParse = s => { const m = String(s || '').match(/(\d{1,2}\/\d{1,2}\/\d{4})\D+(\d{1,2}:\d{2})/); return m ? { d: m[1], t: m[2] } : null; };
 
+const VIP_QR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAR8AAAEfCAAAAABdPJ2RAAAWfmNhQlgAABZ+anVtYgAAAB5qdW1kYzJwYQARABCAAACqADibcQNjMnBhAAAAFlhqdW1iAAAAR2p1bWRjMm1hABEAEIAAAKoAOJtxA3VybjpjMnBhOjJhYzQ2MmY1LTM1YWQtNGExNy04MGIxLTA0MjUzMzI2NGY5YwAAAAOTanVtYgAAAClqdW1kYzJhcwARABCAAACqADibcQNjMnBhLmFzc2VydGlvbnMAAAAAuGp1bWIAAABEanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5pbmdyZWRpZW50LnYzAAAAABhjMnNocWz/WQYGZXXURGUp7DZvYgAAAGxjYm9yo2lkYzpmb3JtYXRpaW1hZ2UvcG5namluc3RhbmNlSUR4LHhtcDppaWQ6ZmZmNTBkODgtMjRiZS00NzUzLWFhMjgtNzlhZTA0YmRhMzI1bHJlbGF0aW9uc2hpcGhwYXJlbnRPZgAAAeJqdW1iAAAAQWp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuYWN0aW9ucy52MgAAAAAYYzJzaDpBkZ2WVdGAgIuvh/dE2HIAAAGZY2JvcqJnYWN0aW9uc4KiZmFjdGlvbmtjMnBhLm9wZW5lZGpwYXJhbWV0ZXJzoWtpbmdyZWRpZW50c4GiY3VybHgtc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5pbmdyZWRpZW50LnYzZGhhc2hYIJrkLF6rWP+m54/UJuI69wD95QKshfMzcxFB86F1pX/ZpGZhY3Rpb254HWNvbS5hbnRocm9waWMuY2xhdWRlLnByb3ZpZGVkanBhcmFtZXRlcnOheB9jb20uYW50aHJvcGljLm9yaWdpbi1jb25maWRlbmNlZ3Vua25vd25rZGVzY3JpcHRpb254ZkNsYXVkZSBwcm92aWRlZCB0aGlzIGZpbGUgYXQgdGhlIHJlcXVlc3Qgb2YgYSB1c2VyIGFuZCBtYXkgaGF2ZSBjcmVhdGVkIG9yIG1vZGlmaWVkIHRoZSBmaWxlIGNvbnRlbnRzLm1zb2Z0d2FyZUFnZW50oWRuYW1lZkNsYXVkZXJhbGxBY3Rpb25zSW5jbHVkZWT1AAAAyGp1bWIAAABAanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5oYXNoLmRhdGEAAAAAGGMyc2g7jXC7PTb/hnVsotzSk3aTAAAAgGNib3KlY2FsZ2ZzaGEyNTZjcGFkTQAAAAAAAAAAAAAAAABkaGFzaFggtotXCLZF0Ze7WkwioVglY4zmtmzMUAicyGScsK4EhaJkbmFtZW5qdW1iZiBtYW5pZmVzdGpleGNsdXNpb25zgaJlc3RhcnQYIWZsZW5ndGgZFooAAAI+anVtYgAAACdqdW1kYzJjbAARABCAAACqADibcQNjMnBhLmNsYWltLnYyAAAAAg9jYm9ypWNhbGdmc2hhMjU2aXNpZ25hdHVyZXhNc2VsZiNqdW1iZj0vYzJwYS91cm46YzJwYToyYWM0NjJmNS0zNWFkLTRhMTctODBiMS0wNDI1MzMyNjRmOWMvYzJwYS5zaWduYXR1cmVqaW5zdGFuY2VJRHgseG1wOmlpZDo4NGI1YWM0OC1lZWRlLTRlNmUtOGNkNi1hMTBhOTY3MDNhMjByY3JlYXRlZF9hc3NlcnRpb25zg6JjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggmuQsXqtY/6bnj9Qm4jr3AP3lAqyF8zNzEUHzoXWlf9miY3VybHgqc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5hY3Rpb25zLnYyZGhhc2hYINdAF8qAbKbH28469xAgIeTZ0m33yuJkNc2AhdzSTr0+omN1cmx4KXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaGFzaC5kYXRhZGhhc2hYIPRgmNPvDNmMiFRGsmCcwgzw0aRS7wxhTTmUctUdNjECdGNsYWltX2dlbmVyYXRvcl9pbmZvo2RuYW1lb0FudGhyb3BpYyBGaWxlc2d2ZXJzaW9uZTEuMC4wa3NwZWNWZXJzaW9uZTIuNC4wAAAQOGp1bWIAAAAoanVtZGMyY3MAEQAQgAAAqgA4m3EDYzJwYS5zaWduYXR1cmUAAAAQCGNib3LShFkCEqIBJhghWQIKMIICBjCCAY2gAwIBAgIUQOWgCu7COdC+uIP6BkIFPWdVEwAwCgYIKoZIzj0EAwMwSTEXMBUGA1UEChMOQW50aHJvcGljLCBQQkMxLjAsBgNVBAMTJUFudGhyb3BpYyBDb250ZW50IENyZWRlbnRpYWxzIFJvb3QgQ0EwHhcNMjYwODA3MTg0MzU2WhcNMjgwODA2MTk0MzU2WjBEMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEpMCcGA1UEAxMgQW50aHJvcGljIENsYXVkZSBDb250ZW50IFNpZ25pbmcwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASYegpry1AYBRTVNL1CpTlbROnY3dey+UrsF9C3phYrATN3ZHf93Mo8RQN0KOUuOn19P4oWNFWe5n2/She9N7eTo1gwVjAOBgNVHQ8BAf8EBAMCB4AwFQYDVR0lBA4wDAYKKwYBBAGD6F4CATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFM5R4gSBTmRbI/jjxM+aPpzB11zCMAoGCCqGSM49BAMDA2cAMGQCMDFzHRSeAXrSy1WOzkbhPZ6Km2wGTmZ/2gK18k8BQGXyqz88Rdrz6CTX9flAnYNVxgIwcF9c3fVhqmJKpi+UhasNUMko69cyX6STPfta3Q8EjyzDjzoyrol46FP6VFHhvUcJoWNwYWRZDZ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2WEDluHLmQUzTWnYtH9GrRcJtvuD24/GBJMdLKEea90Bvqcz4o/w/QQMF4SAWViJukf97x8bye/7+oDl8+GG4kOExrEB4wAAAA5RJREFUeNrt3dGOmzAQBVBc9f9/2f2B1XBnIKqyPn7rJiHpkUeXAQNrX0Yx/iDgw4cPHz58+PAx+PDhw4cPHz58+Bh8+PDhw4cPHz4Gn2D8rV5c3a3tnz6+i03v4p3Vx4ONTX+1+aO++PDhw+eX53uQf9WewL5/S/7H9pj+avNHffHhw4fPGfmeZ3jQT+9hcz4d+a82f9QXHz58+JyY79NozWM++Jf5o7748OFj8Pm/+b6LRG938+2+3/zhw4cPHz7yvR3X026+SvvpMrvqLdv8UV98+PDhI9/vk3ka7NVx9vy1vI1f5o/64sOHD59jx/rEke52hldv2fc7C9v8UV98+PDhY8T9e3uF2y7yNjg+/+Nr7T48/53mj/riw4cPnxPzPQjMHb8z6NiD8+jrPqeDhXxX3P6bP+qLDx8+fH5dvuenvtt/fHWsV/4P5o/64sOHD5+j+veHZ86D0+nBt1/Ddy79u/riw4cPn/PGeH3ddK379MZ1+X5B8EX6d/XFhw8fPgf379P7zOYL8tr9e3ub7k+rvvjw4cNHvgcxX6Vovt4tWCeXB3Rw9n+ZP+qLDx8+fOR7nMxBN//wuTRVQH/wxnXmDx8+fPjw+eKxHj7BbfqcmP3KF7UPBpg/6osPHz585Hse+u8spWvffLb9aLr2LoD5w4cPHz58vnE01tddRUTmZ+On/Xse7EH7b/6oLz58+PDRvz+8pG368SveS5g+wcb1ceqLDx8+fE7s34NWfXop3I6/L/j47qa24/Pqiw8fPnwOzvf2pWmr22Q/PFfePhGwzR/1xYcPHz769/v+vQrT4KkxwQ5Bvlsx3RMwf9QXHz58+JyY79ezFjg/vL/jRA8uim/vM5g/6osPHz58Tsz3aT+dr3e77g8UVFsJNtZeRm/+8OHDhw+fbxxrf2Kj98158Ll8J+OdR8mYP3z48OHD54z+vX21eHX0fHrK/Lo/bDBNdM+HVV98+PDhc2K+X92krKK8HclBO/7qgnvzR33x4cOHz1H5nvfT1Qd2dyvt/r19/t36OvXFhw8fPvJ9Otq3t91x+rYP9uvf1RcfPnz4yPdXR/CQ9us+hNsBvcwf9cWHDx8+8r3bhwdtdR677eVy+Wv5A3DMH/XFhw8fPmfke7sFzq9cz/8YXEWf34rW8Xn1xYcPHz6/e3zk+nfzh4/Bhw8fPnz48OHDx+DDhw8fPnz48OGDgA8fPnz48OFz2PgHP5brbFCu5PgAAAAASUVORK5CYII=';   // mã QR cố định (Techcombank) dùng cho khách VIP
 const homeReceipt = () => $('rcHome').after($('receipt'));   // đưa hóa đơn về chỗ cũ (tab Bán hàng)
 function showReceipt(r, opt) {
   opt = opt || {};
@@ -684,7 +700,7 @@ function showReceipt(r, opt) {
   const when = o && p ? `${p.d} (${o.t} - ${p.t})` : `${r.payTime || r.openTime || ''}`;
   const staff = r.staff || r.staffName || (USER && USER.name) || '';
   const bin = bankBin(st.bank), dyn = !!(bin && st.account);
-  const hasPay = !opt.reprint && (dyn || st.qr || st.bank || st.account || st.holder);
+  const vip = isVip(r.custType), free = grand <= 0, hasPay = !opt.reprint && (vip || dyn || st.qr || st.bank || st.account || st.holder);
   $('receipt').hidden = false; if (opt.pending) $('receipt').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('receipt').innerHTML = `<div class="c">
       <div class="shop">${esc(st.shopName || 'Cửa hàng')}</div>${st.address ? `<div style="font-size:15px;font-weight:400">${esc(st.address)}</div>` : ''}
@@ -698,14 +714,14 @@ function showReceipt(r, opt) {
       ${r.lines.map((l, i) => `<tr><td>${i + 1}. ${esc(l.name)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
     <hr>
     <div class="rr b"><span>Tiền hàng</span><span>${money(gross)}</span></div>
-    <div class="rr i"><span>Chiết khấu (${esc(r.discPct)}%)</span><span>${money(disc)}</span></div>
+    ${Number(r.discPct) > 0 ? `<div class="rr i"><span>Chiết khấu (${esc(r.discPct)}%)</span><span>${money(disc)}</span></div>` : ''}
     ${promoAmt > 0 ? `<div class="rr i"><span>Khuyến mại: ${esc(r.promoName)} (${esc(r.promoPct)}%)</span><span>${money(promoAmt)}</span></div>` : ''}
     ${hasTax ? `<div class="rr b"><span>Tiền trước thuế</span><span>${money(pre)}</span></div>
     <div class="rr b"><span>Tiền thuế (${esc(st.taxPct)}%)</span><span>${money(tax)}</span></div>` : ''}
     <hr>
     <div class="grand"><span>Tổng thanh toán</span><span>${money(grand)}</span></div>
     <div id="cashLines"></div>
-    ${opt.reprint ? '' : `<div class="paybox noprint">
+    ${opt.reprint || free ? '' : `<div class="paybox noprint">
       <div class="seg"><button class="btn sm" data-a="pm" data-m="bank">Chuyển khoản</button><button class="btn sm ghost" data-a="pm" data-m="cash">Tiền mặt</button></div>
       <div id="cashPanel" hidden>
         <label style="text-align:left">Tiền khách đưa</label>
@@ -716,7 +732,7 @@ function showReceipt(r, opt) {
     <div class="c"><div style="font-weight:700;margin-top:6px">Trân trọng cảm ơn</div>
      <div id="bankBlock">
       ${hasPay ? `<div style="margin-top:6px">Thanh toán qua ứng dụng mobile banking</div>` : ''}
-      ${opt.reprint ? '' : dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
+      ${opt.reprint ? '' : vip ? `<img class="qr" src="${VIP_QR}" alt="Mã QR">` : dyn ? `<img class="qr" id="rcQr" alt="Mã QR thanh toán" hidden>` : (st.qr ? `<img class="qr" src="${esc(st.qr)}" alt="Mã QR thanh toán">` : '')}
       <div class="bankinfo">${st.bank ? `<div>${esc(st.bank)}</div>` : ''}${st.account ? `<div>${esc(st.account)}</div>` : ''}${st.holder ? `<div>${esc(st.holder)}</div>` : ''}</div></div></div>
     <div id="paidMark" class="c" style="font-weight:700;color:#0a7a3d;margin-top:8px" ${opt.reprint ? '' : 'hidden'}>✓ ĐÃ THANH TOÁN</div>
     ${opt.pending ? '<div class="c noprint empty">Đang lưu hóa đơn…</div>' : `<div class="row noprint" style="margin-top:12px;flex-wrap:wrap">${opt.reprint ? '<button class="btn ghost sm" data-a="print">In hóa đơn</button>' : '<button class="btn sm" data-a="confirmprint">Xác nhận &amp; in</button>'}<button class="btn ghost sm" data-a="close">Đóng</button></div>`}
@@ -726,7 +742,7 @@ function showReceipt(r, opt) {
     </div>`;
   lastReceipt = { r, text: receiptText(r, st, grand, when) };
   payState.grand = grand; if (!opt.reprint) applyPay();
-  if (dyn && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
+  if (dyn && !vip && !opt.reprint) makeQr(vietQrPayload(bin, st.account, grand, qrMemo(r.id))).then(u => { const im = $('rcQr'); if (im) { im.src = u; im.hidden = false; } })
     .catch(() => { const im = $('rcQr'); if (im && st.qr) { im.src = st.qr; im.hidden = false; } });
 }
 /* App Android (Capacitor): WebView không in/chia sẻ được như Chrome, nên gọi sang cầu nối gốc "AppBridge" */
