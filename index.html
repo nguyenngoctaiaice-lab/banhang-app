@@ -593,10 +593,11 @@ $('tabs').addEventListener('click', e => { if (e.target.dataset.t) openTab(e.tar
 
 /* ---------- Bán hàng: hóa đơn có số, treo / gọi lại / thanh toán ---------- */
 let heldTables = new Set();   // các bàn đang có hóa đơn treo
+let pendingTables = new Set();   // các bàn có đơn khách đặt đang chờ duyệt
 function fillTables() {
   if (!DATA || !DATA.tables) return;
   const sel = $('saleTable'), prev = sel.value;
-  const list = DATA.tables.filter(t => !heldTables.has(t) || t === cur.table);
+  const list = DATA.tables.filter(t => t === cur.table || (!heldTables.has(t) && !pendingTables.has(t)));
   sel.innerHTML = list.length ? list.map(t => `<option>${esc(t)}</option>`).join('') : '<option value="">(Hết bàn trống)</option>';
   if (list.includes(prev)) sel.value = prev;
 }
@@ -2018,6 +2019,7 @@ async function loadGuest(silent) {
   try {
     const r = await api('listGuestOrders', guestAll), admin = USER && USER.role === 'ADMIN'; guestOn = r.enabled;
     const pend = r.orders.filter(o => o.status === 'CHO').length;
+    pendingTables = new Set(r.orders.filter(o => o.status === 'CHO').map(o => o.table)); fillTables();
     $('guestTitle').textContent = `Khách đặt món (${pend} chờ duyệt)`;
     if (guestSeen >= 0 && pend > guestSeen) { beep(); toast('Có đơn khách đặt mới!'); }
     guestSeen = pend;
