@@ -2003,12 +2003,23 @@ async function loadGuest(silent) {
     guestSeen = pend;
     $('btnGuestToggle').textContent = guestOn ? 'Nhận đơn khách: BẬT (bấm để tắt)' : 'Nhận đơn khách: TẮT (bấm để bật)';
     $('btnGuestAll').textContent = guestAll ? 'Chỉ xem đơn chờ duyệt' : 'Xem cả đơn đã xử lý';
-    $('guestList').innerHTML = r.orders.length ? r.orders.map(o => `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
-      <div><span class="gtag">📱 KHÁCH ĐẶT</span> <b>${esc(o.guestName)}</b> · ${esc(o.guestPhone)}<br>🏠 ${esc(o.guestAddr)}</div>
+    $('guestList').innerHTML = r.orders.length ? r.orders.map(o => {
+      // Đảo tên: "Ngọc Đặng Minh" → "Đặng Minh Ngọc" (tên cuối lên đầu)
+      const nameParts = (o.guestName || '').trim().split(/\s+/);
+      const dispName = nameParts.length > 1 ? nameParts.slice(1).join(' ') + ' ' + nameParts[0] : nameParts[0] || '';
+      // Số điện thoại: thêm 0 phía trước nếu chưa có
+      const rawPhone = String(o.guestPhone || '').replace(/\D/g, '');
+      const dispPhone = rawPhone && !rawPhone.startsWith('0') ? '0' + rawPhone : rawPhone;
+      // GPS: trích tọa độ trong ngoặc (nếu có)
+      const gpsMatch = (o.guestAddr || '').match(/\(([^)]+)\)/);
+      const gpsCoords = gpsMatch ? gpsMatch[1] : '';
+      return `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
+      <div><span class="gtag">📱 KHÁCH ĐẶT</span> <b>${esc(dispName)}</b> · <span style="white-space:nowrap">${esc(dispPhone)} <a href="tel:${esc(dispPhone)}" style="text-decoration:none" title="Gọi ngay">📞</a> <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(dispPhone)}').then(()=>toast('Đã sao chép SĐT')).catch(()=>{})" title="Sao chép số">📋</button></span><br>🏠 ${esc(o.guestAddr)}${gpsCoords ? ` <button class="btn ghost sm" style="padding:1px 6px;font-size:12px" onclick="navigator.clipboard.writeText('${esc(gpsCoords)}').then(()=>toast('Đã sao chép tọa độ')).catch(()=>{})" title="Sao chép tọa độ">📋</button>` : ''}</div>
       <div style="margin:4px 0">${payTag({ src: 'KHACH_DAT', payMethod: o.payMethod, payState: o.payState })} · Tổng ước tính: <b>${money(o.amount)}đ</b></div>
       ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>${o.status === 'CHO' ? `x <input type="number" min="0" max="50" class="gq" data-i="${esc(i.id)}" value="${i.qty}" style="width:64px">` : 'x ' + i.qty}</span></div>`).join('')}
       ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}
-      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`).join('')
+      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`;
+    }).join('')
       : '<div class="empty">Chưa có yêu cầu nào.</div>';
   } catch (e) { if (!silent) toast(e.message, true); }
 }
