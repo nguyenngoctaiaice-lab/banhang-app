@@ -24,6 +24,7 @@
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
+  .grow2 { flex-wrap:nowrap; gap:8px; margin-top:6px; } .grow2 > * { flex:1 1 0; min-width:0; }
   .rstar { color:#f5a623; letter-spacing:1px; white-space:nowrap; font-weight:700; } .rstar i { font-style:normal; color:#cfcfcf; }
   .gstt { font-size:12px; font-weight:700; padding:1px 7px; border-radius:10px; white-space:nowrap; display:inline-block; }
   .gstt.ok { background:#dff5e4; color:#1b7a34; } .gstt.no { background:#fdeaea; color:#b3261e; } .gstt.off { background:#eee; color:#666; }
@@ -1831,7 +1832,7 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
 const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
-const G = { gps: null, infoOpen: undefined, sentOpen: {}, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {}, rate: null, doneSeen: {} };
+const G = { gps: null, infoOpen: undefined, sentOpen: {}, menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '', busy: {}, addrMode: 'hand', gpsMsg: '', editId: '', st: {}, rate: null, doneSeen: {}, sentBoxOpen: false };
 const gcall = (fn, ...a) => call(fn, a, false);
 const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
 const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
@@ -1887,8 +1888,8 @@ function gRender() {
     <div class="row one"><div><label>Bàn *</label><select id="gTable" style="font-size:16px;padding:11px 9px" ${G.editId ? 'disabled' : ''}>${gTableOpts()}</select></div><div><label>Thực đơn</label><select id="gPick" style="font-size:16px;padding:11px 9px"></select></div></div><div id="gTableMsg" class="gps err" hidden></div>
     <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
-    <button class="btn" id="gPayBtn" style="width:100%;margin-top:12px">${G.editId ? 'Cập nhật đơn' : 'Đặt món'}</button>
-    <h2 style="margin-top:16px">Đơn đã gửi</h2><div id="gSent" class="empty">Chưa có.</div>`;
+    <button class="btn" id="gPayBtn" style="width:100%;margin-top:12px">${G.editId ? 'CẬP NHẬT ĐƠN' : 'ĐẶT MÓN'}</button>
+    <details class="gf gsb" id="gSentBox" ${G.sentBoxOpen ? 'open' : ''} style="margin-top:16px"><summary>ĐƠN HÀNG ĐÃ GỌI TRƯỚC ĐÂY</summary><div id="gSent" class="empty">Chưa có.</div></details>`;
   gDraw(); gPoll(); gTablesNote();
 }
 /* Bàn đồng bộ với thu ngân: bàn đang có hóa đơn treo / thu ngân đang chọn / có yêu cầu chờ duyệt thì khách không chọn được */
@@ -2065,7 +2066,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {   // nhớ trạng thái mở/đóng do khách tự bấm (không tính lúc tự vẽ lại)
   if (!isGuestMode() || !e.target.closest) return;
   const sm = e.target.closest('summary'), d = sm && sm.parentElement; if (!d || d.tagName !== 'DETAILS') return;
-  setTimeout(() => { if (d.id === 'gInfo') G.infoOpen = d.open; else if (d.dataset.sid) G.sentOpen[d.dataset.sid] = d.open; }, 0);
+  setTimeout(() => { if (d.id === 'gInfo') G.infoOpen = d.open; else if (d.id === 'gSentBox') G.sentBoxOpen = d.open; else if (d.dataset.sid) G.sentOpen[d.dataset.sid] = d.open; }, 0);
 });
 document.addEventListener('focusout', e => { if (isGuestMode() && ['gName', 'gPhone', 'gAddr'].indexOf(e.target.id) >= 0) setTimeout(gInfoCheck, 250); });
 document.addEventListener('change', e => {
@@ -2141,7 +2142,7 @@ async function loadGuest(silent) {
     if (guestEdits !== null && edits.some(e => !(e.id in guestEdits) || e.at > guestEdits[e.id])) { beepEdit(); toast('Khách vừa sửa đơn đã đặt!'); loadHeld(true); }
     guestEdits = now;
     $('btnGuestToggle').textContent = guestOn ? 'Nhận đơn khách: BẬT (bấm để tắt)' : 'Nhận đơn khách: TẮT (bấm để bật)';
-    $('btnGuestAll').textContent = guestAll ? 'Chỉ xem đơn chờ duyệt' : 'Xem cả đơn đã xử lý';
+    $('btnGuestAll').textContent = guestAll ? 'Đơn chờ duyệt' : 'Xem cả đơn đã xử lý';
     $('guestList').innerHTML = r.orders.length ? r.orders.map(o => {
       // Đảo tên: "Ngọc Đặng Minh" → "Đặng Minh Ngọc" (tên cuối lên đầu)
       const nameParts = (o.guestName || '').trim().split(/\s+/);
@@ -2157,7 +2158,7 @@ async function loadGuest(silent) {
       <div style="margin:4px 0">${payTag({ src: 'KHACH_DAT', payMethod: o.payMethod, payState: o.payState })} · Tổng ước tính: <b>${money(o.amount)}đ</b></div>
       ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>x ${i.qty}</span><span class="gp" data-p="${gPrice(i.id)}">${money(gPrice(i.id) * i.qty)}đ</span></div>`).join('')}
       ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}${o.review ? `<div class="empty">💬 Khách nhận xét: ${esc(o.review)}</div>` : ''}
-      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`;
+      ${o.status === 'CHO' ? '<div class="row grow2"><button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button></div>' : ''}${(o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI') || admin ? `<div class="row grow2">${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận chuyển khoản</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div>` : ''}</div>`;
     }).join('')
       : '<div class="empty">Chưa có yêu cầu nào.</div>';
   } catch (e) { if (!silent) toast(e.message, true); }
