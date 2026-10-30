@@ -25,6 +25,11 @@
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
   #guest { max-width:520px; margin:0 auto; padding:14px; } #guest .gl { display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .gcard { border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin:8px 0; }
+  #gCart td.nm { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #gCart td.n { white-space:nowrap; text-align:right; } #gCart td { padding:6px 4px; border-bottom:1px solid var(--line); }
+  .gtag { display:inline-block; background:#6a1b9a; color:#fff; font-size:11px; font-weight:700; padding:1px 6px; border-radius:10px; }
+  .pst { display:inline-block; font-size:12px; font-weight:600; padding:2px 7px; border-radius:6px; }
+  .pst-bad { background:#fde8e8; color:#b3261e; } .pst-warn { background:#fff3d6; color:#9a5b00; } .pst-ok { background:#dff5e6; color:#0a7a3d; } .pst-cash { background:#e8eefc; color:#1d4ed8; }
+  tr.hrow.gh td { background:#f6ecfb; } .gbox { border:1px solid #6a1b9a; background:#f6ecfb; border-radius:8px; padding:8px 10px; margin-bottom:8px; font-size:14px; }
   h2 { font-size:16px; margin:0 0 10px; }
   label { display:block; font-size:13px; color:var(--muted); margin:8px 0 3px; }
   select, input { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; background:#fff; }
@@ -185,6 +190,7 @@
       <h2 style="margin-top:12px">Thực đơn</h2><select id="menuPick"></select>
     </div>
     <div>
+      <div id="guestInfo" class="gbox" hidden></div>
       <div class="inv"><b id="invNo">Hóa đơn mới</b><span id="invTime"></span></div>
       <div id="cart"></div>
       <div class="tot"><span>Tiền hàng</span><span id="tGross">0</span></div>
@@ -623,6 +629,8 @@ function renderCart() {
   renderMenu(); renderPromoBanner();
   $('invNo').textContent = cur.id ? 'Hóa đơn ' + cur.id : 'Hóa đơn mới (chưa có số)';
   tickClock();
+  const gi = $('guestInfo');
+  if (cur.guest) { gi.hidden = false; gi.innerHTML = `<span class="gtag">📱 KHÁCH ĐẶT</span> <b>${esc(cur.guest.name)}</b> · ${esc(cur.guest.phone)}<br>🏠 ${esc(cur.guest.addr)}<br>${payTag({ src: 'KHACH_DAT', payMethod: cur.guest.payMethod, payState: cur.guest.payState })}`; } else gi.hidden = true;
   $('cart').innerHTML = ids.length ? `<table>${ids.map(id => {
     const m = DATA.menu.find(x => String(x.id) === String(id)), amt = m.price * cart[id]; gross += amt;
     return `<tr><td class="nm" title="${esc(m.name)}">${esc(m.name)}</td>
@@ -766,7 +774,7 @@ $('btnHold').onclick = async () => {
 $('btnPay').onclick = async () => {
   let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
   const sn = snapshotOrder(), c = calcReceipt(payload.items, payload.custType);
-  payState = { method: 'bank', given: 0, grand: 0 };
+  payState = { method: (sn.cur.guest && sn.cur.guest.payMethod === 'cash') ? 'cash' : 'bank', given: 0, grand: 0, guest: sn.cur.guest || null };
   showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN') }, { pending: true });
   resetOrder();
   try {
@@ -1030,6 +1038,7 @@ $('receipt').addEventListener('click', e => {
   if (a === 'pm') { payState.method = e.target.dataset.m; applyPay(); if (payState.method === 'cash') { const i = $('cashIn'); if (i) i.focus(); } return; }
   if (a === 'qk') { const v = Number(e.target.dataset.v); payState.given = v || payState.grand; const i = $('cashIn'); i.value = payState.given.toLocaleString('vi-VN'); applyPay(); return; }
   if ((a === 'confirm' || a === 'confirmprint') && !cashOk()) return toast('Tiền khách đưa chưa đủ, còn thiếu ' + money(payState.grand - payState.given) + 'đ.', true);
+  if ((a === 'confirm' || a === 'confirmprint') && payState.guest && payState.guest.payMethod === 'bank' && payState.guest.payState !== 'DA_NHAN' && payState.method === 'bank' && !confirm('Khách đặt này CHƯA được xác nhận đã chuyển khoản. Vẫn xác nhận thanh toán?')) return;
   if (a === 'print') run(e.target, doPrint);
   if (a === 'close') $('receipt').hidden = true;
   if (a === 'confirm' || a === 'confirmprint') {
@@ -1051,9 +1060,9 @@ $('receipt').addEventListener('click', e => {
 async function loadHeld(silent) {
   try {
     const h = await api('listHeld'); heldTables = new Set(h.map(x => x.table)); fillTables(); $('heldTitle').textContent = `Hóa đơn đang treo (${h.length})`;
-    $('heldList').innerHTML = h.length ? `<table><tr><th>Số HĐ</th><th>Bàn</th><th>Mở lúc</th><th>NV</th><th class="n">Món</th><th class="n">Tiền</th><th></th></tr>${h.map(x =>
-      `<tr class="hrow" data-a="recall" data-id="${esc(x.id)}"><td>${esc(x.id)}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td>
-       <td><button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
+    $('heldList').innerHTML = h.length ? `<table><tr><th>Số HĐ</th><th>Bàn</th><th>Mở lúc</th><th>NV</th><th class="n">Món</th><th class="n">Tiền</th><th>Thanh toán</th><th></th></tr>${h.map(x =>
+      `<tr class="hrow${x.src === 'KHACH_DAT' ? ' gh' : ''}" data-a="recall" data-id="${esc(x.id)}"><td>${esc(x.id)}${x.src === 'KHACH_DAT' ? `<br><span class="gtag">📱 KHÁCH ĐẶT</span><br><small>${esc(x.guestName)} · ${esc(x.guestPhone)}</small>` : ''}</td><td>${esc(x.table)}</td><td>${esc(x.openTime)}</td><td>${esc(x.staff)}</td><td class="n">${x.count}</td><td class="n">${money(x.total)}</td><td>${payTag(x)}</td>
+       <td>${x.src === 'KHACH_DAT' && x.payMethod === 'bank' && x.payState !== 'DA_NHAN' ? `<button class="btn sm" data-a="gpay" data-id="${esc(x.id)}">Đã nhận CK</button> ` : ''}<button class="btn ghost sm" data-a="void" data-id="${esc(x.id)}">Hủy</button></td></tr>`).join('')}</table>`
       : '<div class="empty">Không có hóa đơn nào đang treo.</div>';
     [...heldCache.keys()].forEach(id => { if (!h.some(x => x.id === id)) heldCache.delete(id); });
     h.forEach(x => heldCache.set(x.id, x));   // danh sách đã kèm món nên gọi lại là có ngay
@@ -1067,11 +1076,12 @@ $('heldList').addEventListener('click', e => {
     b.dataset.busy = 1; setTimeout(() => delete b.dataset.busy, 1500);
     if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
     let o = heldCache.get(id); if (!o) o = await api('getOrder', id);
-    cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openFull || o.openTime, table: o.table };
+    cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openFull || o.openTime, table: o.table, guest: o.src === 'KHACH_DAT' ? { name: o.guestName, phone: o.guestPhone, addr: o.guestAddr, payMethod: o.payMethod, payState: o.payState } : null };
     fillTables(); $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; vipCode = ''; renderCart();
     if (isVip(o.custType)) { toast('Hóa đơn khách VIP: hãy quét lại mã QR để xác nhận.'); scanVipCode().then(c => { if (c) { vipCode = c; renderCart(); } else toast('Chưa quét mã VIP, hóa đơn sẽ không lưu được.', true); }); }
     toast('Đã gọi lại ' + o.id);
   });
+  if (b.dataset.a === 'gpay') return run(b, async () => { await api('setGuestPayState', id, 'DA_NHAN'); toast('Đã ghi nhận nhận tiền chuyển khoản.'); loadHeld(); });
   if (b.dataset.a === 'void') {
     if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Bấm lại để hủy'; return; }
     run(b, async () => { await api('cancelHeld', id); toast('Đã hủy ' + id); loadHeld(); });
@@ -1759,51 +1769,152 @@ $('btnThSave').onclick = e => run(e.target, async () => {
 
 /* ---------- KHÁCH TỰ ĐẶT MÓN (mở bằng ?ban=Bàn 3 hoặc ?dat=1, không cần đăng nhập) ---------- */
 const GQ = new URLSearchParams(location.search), isGuestMode = () => GQ.has('ban') || GQ.has('dat');
-const G = { menu: [], tables: [], table: '', cart: {}, note: '', on: true };
+const G = { menu: [], tables: [], table: '', cart: {}, note: '', on: true, name: '', phone: '', addr: '', pay: {}, custDisc: 0, promos: [], method: '' };
 const gcall = (fn, ...a) => call(fn, a, false);
 const gCid = () => { let v = store.get('bh_cid'); if (!v) { v = 'c' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36); store.set('bh_cid', v); } return v; };
 const gSentList = () => { try { return JSON.parse(store.get('bh_gsent') || '[]'); } catch (e) { return []; } };
-const gTotals = () => G.menu.reduce((a, m) => { const q = G.cart[m.id] || 0; a.t += q * m.price; a.n += q; return a; }, { t: 0, n: 0 });
-function gUpdate() { const x = gTotals(); G.menu.forEach(m => { const e = $('gq_' + m.id); if (e) e.textContent = G.cart[m.id] || 0; }); $('gTot').textContent = money(x.t); $('gSend').disabled = !x.n; }
+const gSaveInfo = () => store.set('bh_ginfo', JSON.stringify({ name: G.name, phone: G.phone, addr: G.addr }));
+const gPhoneOk = v => /^(\+?84|0)\d{9,10}$/.test(String(v || '').replace(/[\s.\-()]/g, ''));
+const gHasBank = () => !!(G.pay && (G.pay.qr || G.pay.bank || G.pay.account));
+/* Tính tiền xem trước giống thu ngân (máy chủ vẫn tự tính lại khi nhận đơn) */
+function gCalc() {
+  let gross = 0, n = 0; G.menu.forEach(m => { const q = G.cart[m.id] || 0; gross += q * m.price; n += q; });
+  const d = Math.round(gross * G.custDisc / 100), now = Date.now(); let pr = null;
+  (G.promos || []).forEach(p => { if (p.startMs <= now && now <= p.endMs && (!pr || p.pct > pr.pct)) pr = p; });
+  const pa = pr ? Math.round((gross - d) * pr.pct / 100) : 0, pre = gross - d - pa, taxPct = Number(G.pay.taxPct) || 0, tax = Math.round(pre * taxPct / 100);
+  return { gross, n, d, pr, pa, pre, tax, taxPct, total: pre + tax };
+}
+function gDraw() {
+  const left = G.menu.filter(m => !(m.id in G.cart)), pk = $('gPick');
+  pk.disabled = !left.length;
+  pk.innerHTML = `<option value="">${left.length ? '— Chọn món để thêm —' : 'Đã chọn hết các món'}</option>` + left.map(m => `<option value="${esc(m.id)}">${esc(m.name)} – ${money(m.price)}đ</option>`).join('');
+  const ids = Object.keys(G.cart);
+  $('gCart').innerHTML = ids.length ? `<table>${ids.map(id => { const m = G.menu.find(x => String(x.id) === String(id)); if (!m) return '';
+    return `<tr><td class="nm">${esc(m.name)}</td><td><span class="qty"><button data-g="-" data-id="${esc(id)}">−</button>${G.cart[id]}<button data-g="+" data-id="${esc(id)}">+</button></span></td><td class="n">${money(m.price * G.cart[id])}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chọn món ở trên để thêm.</div>';
+  const c = gCalc();
+  $('gTots').innerHTML = `<div class="tot"><span>Tiền hàng</span><span>${money(c.gross)}</span></div>` +
+    (c.d > 0 ? `<div class="tot"><span>Chiết khấu (${G.custDisc}%)</span><span>-${money(c.d)}</span></div>` : '') +
+    (c.pa > 0 ? `<div class="tot"><span>Khuyến mại: ${esc(c.pr.name)} (${c.pr.pct}%)</span><span>-${money(c.pa)}</span></div>` : '') +
+    (c.taxPct > 0 ? `<div class="tot"><span>Thuế (${c.taxPct}%)</span><span>${money(c.tax)}</span></div>` : '') +
+    `<div class="tot big"><span>Thành tiền</span><span>${money(c.total)}</span></div>`;
+}
 function gRender() {
   if (!G.on) { $('gBody').innerHTML = '<div class="empty" style="text-align:center">Quán tạm ngưng nhận đặt món qua điện thoại. Vui lòng gọi nhân viên.</div>'; return; }
-  $('gBody').innerHTML = `<label>Bàn</label><select id="gTable"><option value="">-- Chọn bàn --</option>${G.tables.map(t => `<option ${t === G.table ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
-    <h2>Thực đơn</h2>${G.menu.map(m => `<div class="gl"><span>${esc(m.name)}<br><small>${money(m.price)}đ</small></span><span><button class="btn ghost sm" data-g="-" data-id="${esc(m.id)}">−</button> <b id="gq_${esc(m.id)}" style="display:inline-block;min-width:22px;text-align:center">${G.cart[m.id] || 0}</b> <button class="btn sm" data-g="+" data-id="${esc(m.id)}">+</button></span></div>`).join('')}
+  $('gBody').innerHTML = `<h2>Thông tin khách hàng</h2>
+    <label>Họ và tên *</label><input id="gName" maxlength="60" autocomplete="name" value="${esc(G.name)}">
+    <label>Số điện thoại *</label><input id="gPhone" type="tel" inputmode="tel" maxlength="15" autocomplete="tel" value="${esc(G.phone)}">
+    <label>Địa chỉ *</label><input id="gAddr" maxlength="150" autocomplete="street-address" value="${esc(G.addr)}">
+    <label>Bàn *</label><select id="gTable"><option value="">-- Chọn bàn --</option>${G.tables.map(t => `<option ${t === G.table ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <h2 style="margin-top:14px">Thực đơn</h2><select id="gPick" style="font-size:16px;padding:11px 9px"></select>
+    <div id="gCart"></div><div id="gTots"></div>
     <label>Ghi chú</label><input id="gNote" maxlength="100" placeholder="Không bắt buộc" value="${esc(G.note)}">
-    <div class="tot big"><span>Tạm tính</span><span id="gTot">0</span></div>
-    <button class="btn" id="gSend" style="width:100%;margin-top:10px" disabled>Gửi đặt món</button>
+    <button class="btn" id="gPayBtn" style="width:100%;margin-top:12px">Thanh toán</button>
     <h2 style="margin-top:16px">Đơn đã gửi</h2><div id="gSent" class="empty">Chưa có.</div>`;
-  gUpdate(); gPoll();
+  gDraw(); gPoll();
 }
 const G_ST = { CHO: '⏳ Chờ nhân viên xác nhận', DA_DUYET: '✅ Đã xác nhận, món đang được chuẩn bị', TU_CHOI: '❌ Nhân viên từ chối, vui lòng gọi nhân viên' };
+function gPayTxt(s) {
+  if (s.method === 'cash') return '💵 Thanh toán tiền mặt tại quầy';
+  if (s.method !== 'bank') return '';
+  return s.pay === 'DA_NHAN' ? '✅ Quán đã nhận tiền chuyển khoản' : s.pay === 'KHACH_BAO' ? '⏳ Đã báo chuyển khoản, chờ quán xác nhận' : '❌ Chưa chuyển khoản';
+}
 async function gPoll() {
   const l = gSentList(), box = $('gSent'); if (!l.length || !box) return;
-  try { const st = await gcall('guestStatus', l.map(x => x.id)); box.className = ''; box.innerHTML = l.map(x => `<div class="gl"><span>${esc(x.t)}<br><small>${esc(x.id)}</small></span><span style="text-align:right">${G_ST[st[x.id]] || '—'}</span></div>`).join(''); } catch (e) {}
+  try {
+    const st = await gcall('guestStatus', l.map(x => x.id)); box.className = '';
+    box.innerHTML = l.map(x => { const s = st[x.id] || {}, m = s.method || x.m, pay = s.pay || '';
+      const need = m === 'bank' && pay === 'CHUA' && s.st !== 'TU_CHOI';
+      return `<div class="gcard"><b>${esc(x.t)}</b> <small>${esc(x.id)}</small><div>${G_ST[s.st] || '—'}</div><div>${gPayTxt({ method: m, pay: pay })}</div>
+        ${need ? `<div class="row" style="margin-top:6px"><button class="btn sm" data-g="qr" data-id="${esc(x.id)}">Xem mã QR</button><button class="btn ghost sm" data-g="paid" data-id="${esc(x.id)}">Tôi đã chuyển khoản</button></div>` : ''}</div>`; }).join('');
+  } catch (e) {}
+}
+/* Cửa sổ nổi (thanh toán / xem QR) */
+function gOverlay(html) {
+  let o = $('gOv'); if (!o) { o = document.createElement('div'); o.id = 'gOv'; o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;overflow:auto;padding:12px'; document.body.appendChild(o); }
+  o.innerHTML = `<div style="background:#fff;max-width:420px;margin:0 auto;border-radius:10px;padding:14px">${html}</div>`; o.hidden = false;
+}
+const gClose = () => { const o = $('gOv'); if (o) o.hidden = true; };
+function gBankHtml(total, memo) {
+  const p = G.pay;
+  return `<div style="text-align:center"><div style="font-weight:700;color:#0a7a3d">Thanh toán qua ứng dụng mobile banking</div><div style="font-size:22px;font-weight:700;margin:6px 0">${money(total)}đ</div>
+    <img id="gQrImg" alt="Mã QR thanh toán" hidden style="display:block;margin:6px auto;width:230px;max-width:100%">
+    <div>${esc(p.bank || '')}</div><div><b>${esc(p.account || '')}</b></div><div>${esc(p.holder || '')}</div>
+    <div class="empty" style="padding:4px 0">Nội dung chuyển khoản: <b>${esc(memo)}</b></div></div>`;
+}
+function gFillQr(total, memo) {
+  const p = G.pay, bin = bankBin(p.bank), im = $('gQrImg'); if (!im) return;
+  const fb = () => { if (p.qr) { im.src = p.qr; im.hidden = false; } };
+  if (bin && p.account) makeQr(vietQrPayload(bin, p.account, total, memo)).then(u => { im.src = u; im.hidden = false; }).catch(fb); else fb();
+}
+const gMemo = () => qrMemo('DATMON' + G.table + String(G.phone).replace(/\D/g, '').slice(-4));
+function gPayDialog() {
+  const c = gCalc(), memo = gMemo(), ok = gHasBank();
+  if (!G.method || (G.method === 'bank' && !ok)) G.method = ok ? 'bank' : 'cash';
+  const bank = G.method === 'bank';
+  gOverlay(`<h2 style="margin:0 0 8px;text-align:center">Chọn hình thức thanh toán</h2>
+    <div style="display:flex;gap:8px"><button class="btn sm ${bank ? '' : 'ghost'}" data-g="m-bank" style="flex:1" ${ok ? '' : 'disabled'}>Chuyển khoản</button><button class="btn sm ${bank ? 'ghost' : ''}" data-g="m-cash" style="flex:1">Tiền mặt</button></div>
+    <div style="margin-top:10px">${bank ? gBankHtml(c.total, memo) : `<div style="text-align:center;padding:14px 0"><div style="font-size:22px;font-weight:700">${money(c.total)}đ</div><div>Quý khách thanh toán <b>tiền mặt</b> cho nhân viên.</div></div>`}</div>
+    ${bank ? `<button class="btn" data-g="send-paid" style="width:100%;margin-top:10px">Tôi đã chuyển khoản – Gửi đơn</button><button class="btn ghost" data-g="send-unpaid" style="width:100%;margin-top:8px">Gửi đơn, chuyển khoản sau</button>` : `<button class="btn" data-g="send-cash" style="width:100%;margin-top:10px">Xác nhận đặt món</button>`}
+    <button class="btn ghost sm" data-g="close" style="width:100%;margin-top:8px">Quay lại</button>`);
+  if (bank) gFillQr(c.total, memo);
+}
+function gValidate() {
+  if (G.name.trim().length < 2) throw new Error('Vui lòng nhập họ và tên.');
+  if (!gPhoneOk(G.phone)) throw new Error('Số điện thoại không hợp lệ.');
+  if (G.addr.trim().length < 5) throw new Error('Vui lòng nhập địa chỉ.');
+  if (!G.table) throw new Error('Hãy chọn bàn trước khi gửi.');
+  if (!gCalc().n) throw new Error('Bạn chưa chọn món nào.');
+}
+function gSend(btn, paid) {
+  run(btn, async () => {
+    const c = gCalc(), items = Object.keys(G.cart).map(id => ({ id, qty: G.cart[id] })), memo = gMemo();
+    const r = await gcall('guestSubmit', G.table, items, G.note, gCid(), { name: G.name.trim(), phone: G.phone.trim(), addr: G.addr.trim(), method: G.method, paid: !!paid });
+    const l = gSentList(); l.unshift({ id: r.id, t: `${G.table} · ${c.n} món`, m: G.method, a: r.total, memo: memo }); store.set('bh_gsent', JSON.stringify(l.slice(0, 8)));
+    G.cart = {}; G.note = ''; G.method = ''; gClose(); gRender(); toast('Đã gửi! Vui lòng chờ nhân viên xác nhận.');
+  });
 }
 async function guestInit() {
   $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false;
   try {
-    const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled;
+    const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || [];
+    try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = sv.addr || ''; } catch (e) {}
     $('gShop').textContent = d.shop ? d.shop + ' – Đặt món' : 'Đặt món';
     const b = GQ.get('ban'); if (b && d.tables.includes(b)) G.table = b;
     gRender(); setInterval(gPoll, 8000);
   } catch (e) { $('gMsg').textContent = e.message; }
 }
-$('guest').addEventListener('click', e => {
-  const b = e.target.closest('[data-g]');
-  if (b) { const id = b.dataset.id, q = (G.cart[id] || 0) + (b.dataset.g === '+' ? 1 : -1); G.cart[id] = Math.max(0, Math.min(50, q)); if (!G.cart[id]) delete G.cart[id]; return gUpdate(); }
-  if (e.target.id === 'gSend') run(e.target, async () => {
-    if (!G.table) throw new Error('Hãy chọn bàn trước khi gửi.');
-    const items = Object.keys(G.cart).map(id => ({ id, qty: G.cart[id] })), n = gTotals().n;
-    const r = await gcall('guestSubmit', G.table, items, G.note, gCid());
-    const l = gSentList(); l.unshift({ id: r.id, t: `${G.table} · ${n} món` }); store.set('bh_gsent', JSON.stringify(l.slice(0, 8)));
-    G.cart = {}; G.note = ''; gRender(); toast('Đã gửi! Vui lòng chờ nhân viên xác nhận.');
-  });
+document.addEventListener('click', e => {
+  if (!isGuestMode()) return;
+  if (e.target.id === 'gPayBtn') { try { gValidate(); } catch (err) { return toast(err.message, true); } G.method = ''; return gPayDialog(); }
+  const b = e.target.closest('[data-g]'); if (!b) return; const g = b.dataset.g, id = b.dataset.id;
+  if (g === '+' || g === '-') { const q = (G.cart[id] || 0) + (g === '+' ? 1 : -1); G.cart[id] = Math.max(0, Math.min(50, q)); if (!G.cart[id]) delete G.cart[id]; return gDraw(); }
+  if (g === 'close') return gClose();
+  if (g === 'm-bank' || g === 'm-cash') { G.method = g === 'm-bank' ? 'bank' : 'cash'; return gPayDialog(); }
+  if (g === 'send-paid') return gSend(b, true);
+  if (g === 'send-unpaid' || g === 'send-cash') return gSend(b, false);
+  if (g === 'qr') { const it = gSentList().find(x => x.id === id); if (!it) return;
+    gOverlay(`${gBankHtml(it.a, it.memo)}<button class="btn" data-g="paid" data-id="${esc(id)}" style="width:100%;margin-top:10px">Tôi đã chuyển khoản</button><button class="btn ghost sm" data-g="close" style="width:100%;margin-top:8px">Đóng</button>`); return gFillQr(it.a, it.memo); }
+  if (g === 'paid') return run(b, async () => { await gcall('guestMarkPaid', id, gCid()); gClose(); toast('Đã báo cho quán. Nhân viên sẽ xác nhận.'); gPoll(); });
 });
-$('guest').addEventListener('change', e => { if (e.target.id === 'gTable') G.table = e.target.value; });
-$('guest').addEventListener('input', e => { if (e.target.id === 'gNote') G.note = e.target.value; });
+document.addEventListener('change', e => {
+  if (!isGuestMode()) return;
+  if (e.target.id === 'gTable') G.table = e.target.value;
+  if (e.target.id === 'gPick' && e.target.value) { G.cart[e.target.value] = 1; gDraw(); }
+});
+document.addEventListener('input', e => {
+  if (!isGuestMode()) return;
+  const m = { gName: 'name', gPhone: 'phone', gAddr: 'addr', gNote: 'note' }[e.target.id];
+  if (m) { G[m] = e.target.value; if (m !== 'note') gSaveInfo(); }
+});
 
 /* ---------- Thu ngân: duyệt / từ chối đơn khách đặt (admin: bật/tắt, sửa, xóa, in QR bàn) ---------- */
+function payTag(x) {
+  if (!x || x.src !== 'KHACH_DAT') return '';
+  if (x.payMethod === 'cash') return '<span class="pst pst-cash">💵 Tiền mặt (trả tại quầy)</span>';
+  if (x.payState === 'DA_NHAN') return '<span class="pst pst-ok">✅ CK: ĐÃ nhận tiền</span>';
+  if (x.payState === 'KHACH_BAO') return '<span class="pst pst-warn">⏳ CK: khách báo đã chuyển (chưa xác nhận)</span>';
+  return '<span class="pst pst-bad">❌ CK: CHƯA chuyển khoản</span>';
+}
 let guestAll = false, guestSeen = -1, guestOn = true;
 function beep() { try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(); o.connect(c.destination); o.frequency.value = 880; o.start(); setTimeout(() => { o.stop(); c.close(); }, 350); } catch (e) {} }
 const GS_TXT = { CHO: 'Chờ duyệt', DA_DUYET: 'Đã duyệt', TU_CHOI: 'Đã từ chối' };
@@ -1818,19 +1929,22 @@ async function loadGuest(silent) {
     $('btnGuestToggle').textContent = guestOn ? 'Nhận đơn khách: BẬT (bấm để tắt)' : 'Nhận đơn khách: TẮT (bấm để bật)';
     $('btnGuestAll').textContent = guestAll ? 'Chỉ xem đơn chờ duyệt' : 'Xem cả đơn đã xử lý';
     $('guestList').innerHTML = r.orders.length ? r.orders.map(o => `<div class="gcard" data-id="${esc(o.id)}"><b>${esc(o.table)}</b> · ${esc(o.time)} · <i>${GS_TXT[o.status] || o.status}</i>${o.invoiceId ? ' · ' + esc(o.invoiceId) : ''}
+      <div><span class="gtag">📱 KHÁCH ĐẶT</span> <b>${esc(o.guestName)}</b> · ${esc(o.guestPhone)}<br>🏠 ${esc(o.guestAddr)}</div>
+      <div style="margin:4px 0">${payTag({ src: 'KHACH_DAT', payMethod: o.payMethod, payState: o.payState })} · Tổng ước tính: <b>${money(o.amount)}đ</b></div>
       ${o.items.map(i => `<div class="gl"><span>${esc(i.name)}</span><span>${o.status === 'CHO' ? `x <input type="number" min="0" max="50" class="gq" data-i="${esc(i.id)}" value="${i.qty}" style="width:64px">` : 'x ' + i.qty}</span></div>`).join('')}
       ${o.note ? `<div class="empty">Ghi chú: ${esc(o.note)}</div>` : ''}
-      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`).join('')
+      <div class="row" style="margin-top:6px">${o.status === 'CHO' ? '<button class="btn sm" data-a="gOk">Duyệt</button><button class="btn ghost sm" data-a="gNo">Từ chối</button>' : ''}${o.payMethod === 'bank' && o.payState !== 'DA_NHAN' && o.status !== 'TU_CHOI' ? '<button class="btn sm" data-a="gPay">Đã nhận CK</button>' : ''}${admin ? '<button class="btn ghost sm" data-a="gDel">Xóa</button>' : ''}</div></div>`).join('')
       : '<div class="empty">Chưa có yêu cầu nào.</div>';
   } catch (e) { if (!silent) toast(e.message, true); }
 }
 $('guestList').addEventListener('click', e => {
-  const a = e.target.dataset.a; if (!/^g(Ok|No|Del)$/.test(a || '')) return;
+  const a = e.target.dataset.a; if (!/^g(Ok|No|Del|Pay)$/.test(a || '')) return;
   const card = e.target.closest('.gcard'), id = card.dataset.id;
   if (a === 'gDel' && !confirm('Xóa yêu cầu này?')) return;
   run(e.target, async () => {
     if (a === 'gOk') { const items = [...card.querySelectorAll('.gq')].map(i => ({ id: i.dataset.i, qty: Number(i.value) || 0 })).filter(i => i.qty > 0); await api('approveGuestOrder', id, items); toast('Đã duyệt, món đã vào hóa đơn treo.'); loadHeld(); }
     else if (a === 'gNo') await api('rejectGuestOrder', id);
+    else if (a === 'gPay') { await api('setGuestPayState', id, 'DA_NHAN'); toast('Đã ghi nhận nhận tiền chuyển khoản.'); loadHeld(true); }
     else await api('deleteGuestOrder', id);
     loadGuest();
   });
