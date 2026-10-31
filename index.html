@@ -165,7 +165,7 @@
   .promoBar.static span { position:static; display:block; text-align:center; animation:none; font-size:17px; }
   @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; } }
   /* Trang trí 2 bên trái/phải theo chủ đề (cành hoa, đèn lồng treo, câu đối); chỉ hiện khi màn hình đủ rộng, phần giữa giữ nguyên */
-  .side { position:fixed; top:0; bottom:0; width:clamp(90px,calc((100vw - 996px)/2 - 6px),200px); pointer-events:none; z-index:-1; display:none; overflow:hidden; }
+  .side { position:fixed; top:0; bottom:0; width:clamp(90px,calc((100vw - 996px)/2 - 6px),200px); pointer-events:none; z-index:-1; display:none; overflow:hidden; container-type:inline-size; }
   .side.l { left:0; } .side.r { right:0; }
   body:not(.isGuest) .side { top:104px; }   /* nằm dưới thanh tiêu đề + thanh tab */
   body.isGuest .side { width:clamp(90px,calc((100vw - 540px)/2 - 6px),200px); }
@@ -176,10 +176,11 @@
   .side .hg { position:absolute; top:0; width:34px; text-align:center; transform-origin:50% 0; animation:sideSway 4.5s ease-in-out infinite alternate; }
   .side .hg i { display:block; width:2px; height:var(--len); margin:0 auto; background:linear-gradient(#d4a017,#f3d36b); }
   .side .hg b { display:block; font-size:30px; line-height:1; font-weight:400; }
-  .side .sc { position:absolute; top:150px; left:50%; width:70px; margin-left:-35px; padding:16px 4px 14px; box-sizing:border-box; text-align:center; font-weight:700; font-size:12px; line-height:1.45; border:2px solid var(--scInk); border-radius:3px; color:var(--scInk); background:var(--scBg); box-shadow:0 2px 6px rgba(0,0,0,.25); }
-  .side .sc::before { content:""; position:absolute; left:-4px; right:-4px; top:-7px; height:7px; border-radius:3px; background:var(--scInk); }
-  .side .sc::after { content:""; position:absolute; left:50%; bottom:-22px; width:3px; height:20px; margin-left:-1.5px; background:var(--scInk); box-shadow:-6px 4px 0 var(--scInk), 6px 4px 0 var(--scInk); }
+  .side .sc { position:absolute; top:178px; bottom:74px; left:10px; right:10px; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-evenly; align-items:center; padding:14px 2px 12px; text-align:center; font-weight:700; font-size:13px; font-size:clamp(11px,calc(14cqw - 4px),21px); line-height:1.2; border:2px solid var(--scInk); border-radius:3px; color:var(--scInk); background:var(--scBg); box-shadow:0 2px 8px rgba(0,0,0,.3); }
+  .side .sc::before { content:""; position:absolute; left:-5px; right:-5px; top:-8px; height:8px; border-radius:3px; background:var(--scInk); }
+  .side .sc::after { content:""; position:absolute; inset:5px; border:1px solid var(--scInk); border-radius:2px; opacity:.55; }
   .side .sc div { white-space:nowrap; }
+  .side .sc .tas { position:absolute; left:50%; bottom:-24px; width:3px; height:22px; margin-left:-1.5px; background:var(--scInk); box-shadow:-7px 4px 0 var(--scInk), 7px 4px 0 var(--scInk); }
   .side .bt { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:38px; line-height:1; opacity:.95; }
   @keyframes sideSway { from { transform:rotate(-4deg); } to { transform:rotate(4deg); } }
   @media (max-height:560px) { .side .bt { display:none; } }
@@ -1929,7 +1930,7 @@ function sideHtml(t, isRight) {
   const pal = d[5] || [t.bar[1], t.v.accent], words = d[isRight ? 4 : 3].split(/[|\s]+/).filter(Boolean);
   const pos = isRight ? 'right' : 'left', hg = (x, len, e, delay) => `<div class="hg" style="${pos}:calc(${x}% - 17px);--len:${len}px;animation-delay:${delay}s"><i></i><b>${e}</b></div>`;
   return branchSvg(pal[0], pal[1]) + hg(68, 70, d[0], 0) + hg(84, 118, d[1], -2)
-    + `<div class="sc" style="--scBg:linear-gradient(${t.bar[0]},${t.bar[1]});--scInk:${t.barInk}">${words.map(w => `<div>${esc(w)}</div>`).join('')}</div>`
+    + `<div class="sc" style="--scBg:linear-gradient(${t.bar[0]},${t.bar[1]});--scInk:${t.barInk}">${words.map(w => `<div>${esc(w)}</div>`).join('')}<span class="tas"></span></div>`
     + `<div class="bt">${d[2]}</div>`;
 }
 function applySide(t) {
