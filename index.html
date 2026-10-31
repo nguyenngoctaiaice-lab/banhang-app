@@ -673,13 +673,13 @@ let promoBannerKey = '', promoRunKey = '', promoSndReady = false;   // promoSndR
 function renderPromoBanner() {
   const now = Date.now(), p2 = n => String(n).padStart(2, '0');
   const f = ms => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`; };
-  const list = (DATA.promos || []).filter(p => p.endMs > now);
+  const list = (DATA.promos || []).filter(p => p.startMs <= now && now <= p.endMs);   // chỉ hiện khi ĐÃ tới giờ bắt đầu và chưa hết giờ kết thúc
   const key = list.map(p => p.id + p.pct + p.name + p.startMs + p.endMs + p.online + p.direct).join('|');
   if (key === promoBannerKey) return;
   promoBannerKey = key;
   $('promoBanner').innerHTML = list.map(p => `<div class="promoBar"><span>🎉 GIẢM ${esc(p.pct)}% · ${esc(p.name)}${p.online === false ? ' (chỉ mua trực tiếp)' : p.direct === false ? ' (chỉ đơn online)' : ''} · Áp dụng từ ${f(p.startMs)} đến ${f(p.endMs)} 🎉</span></div>`).join('');
 }
-setInterval(() => { if (DATA && DATA.menu) renderPromoBanner(); }, 5000);
+setInterval(() => { if (DATA && DATA.menu) renderPromoBanner(); }, 1000);   // kiểm tra mỗi giây để dải đỏ hiện / tắt đúng giờ
 /* Tiếng thông báo khuyến mại: chỉ phụ thuộc cài đặt trong Quản trị (chương trình đang BẬT và đang trong lịch = "Đang áp dụng"), KHÔNG phụ thuộc dải chữ đỏ.
    Chương trình đang tắt (hoặc chưa tới giờ / đã hết hạn) thì không phát. Phát 1 lần khi chương trình chuyển sang "Đang áp dụng". */
 const PROMO_SOON_MS = 15000, PROMO_END_MS = 10000;   // báo "sắp bắt đầu" trước 15 giây; báo "đã kết thúc" sau 10 giây
