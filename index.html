@@ -1129,11 +1129,11 @@ $('receipt').addEventListener('click', e => {
   if ((a === 'confirm' || a === 'confirmprint') && payState.guest && payState.guest.payMethod === 'bank' && payState.guest.payState !== 'DA_NHAN' && payState.method === 'bank' && !confirm('Khách đặt này CHƯA được xác nhận đã chuyển khoản. Vẫn xác nhận thanh toán?')) return;
   if (a === 'print') run(e.target, doPrint);
   if (a === 'close') {
-    try { beepClose(); } catch (err) {}
     // Chưa bấm Xác nhận mà Đóng: hóa đơn đã lưu "đã thanh toán" trên máy chủ -> đưa về mục Hóa đơn đang treo (không để mất)
     const unconfirmed = [...$('receipt').querySelectorAll('[data-a="confirmprint"],[data-a="confirm"]')].some(b => !b.hidden);
     const rid = lastReceipt && lastReceipt.r && lastReceipt.r.id;
     $('receipt').hidden = true;
+    if (unconfirmed) { try { beepClose(); } catch (err) {} }   // chỉ kêu khi đóng mà CHƯA xác nhận
     if (unconfirmed && rid && rid !== '…') {
       api('cancelPayment', rid).then(() => { heldCache.delete(rid); loadHeld(true); fillTables(); toast('Chưa xác nhận thanh toán: ' + rid + ' đã quay về mục Hóa đơn đang treo.'); })
         .catch(err => { loadHeld(true); toast(/không hợp lệ/i.test(err.message) ? 'Máy chủ chưa cập nhật chức năng đưa hóa đơn về treo (cancelPayment).' : err.message, true); });
