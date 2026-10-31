@@ -232,6 +232,10 @@
         <div><label>Bàn</label><select id="saleTable"></select></div>
         <div><label>Loại khách</label><select id="saleCust"></select></div>
       </div>
+      <div class="row one" style="margin-top:8px">
+        <div><label>Tên khách</label><input id="saleCName" placeholder="Không bắt buộc" autocomplete="off"></div>
+        <div><label>SĐT khách</label><input id="saleCPhone" type="tel" inputmode="tel" placeholder="Không bắt buộc" autocomplete="off"></div>
+      </div>
       <h2 style="margin-top:12px">Thực đơn</h2><select id="menuPick"></select>
     </div>
     <div>
@@ -691,7 +695,7 @@ function syncTableLock() {
   if (want || old) api('lockTable', want, old && old !== want ? old : '').catch(() => {});
 }
 setInterval(() => { if (lockedTable) api('lockTable', lockedTable, '').catch(() => {}); }, 40000);   // giữ bàn (hết hạn sau ~2 phút nếu thu ngân đóng trang)
-function resetOrder() { cart = {}; cur = {}; vipAuto = null; vipCode = ''; $('saleNote').value = ''; if (isVip($('saleCust').value)) $('saleCust').selectedIndex = 0;   // không để VIP "dính" sang hóa đơn sau
+function resetOrder() { cart = {}; cur = {}; vipAuto = null; vipCode = ''; $('saleNote').value = ''; $('saleCName').value = ''; $('saleCPhone').value = ''; if (isVip($('saleCust').value)) $('saleCust').selectedIndex = 0;   // không để VIP "dính" sang hóa đơn sau
   fillTables(); renderCart(); }
 function renderMenu() {
   const left = DATA.menu.filter(m => !(m.id in cart));
@@ -821,11 +825,22 @@ async function onCustChange() {
 $('saleCust').addEventListener('change', onCustChange);
 $('btnClear').onclick = () => { try { beepNewInv(); } catch (e) {} resetOrder(); };
 
+/* Thông tin khách do thu ngân nhập (tên + SĐT): gửi kèm hóa đơn, đồng thời nhớ trên máy theo số HĐ để gọi lại / in lại khi máy chủ chưa lưu */
+const CI_KEY = 'bh_custinfo';
+const ciAll = () => { try { return JSON.parse(store.get(CI_KEY) || '{}') || {}; } catch (e) { return {}; } };
+function ciSave(id, n, p) {
+  if (!id) return; const a = ciAll();
+  if (n || p) a[id] = { n, p }; else delete a[id];
+  const k = Object.keys(a); if (k.length > 500) k.slice(0, k.length - 500).forEach(x => delete a[x]);
+  store.set(CI_KEY, JSON.stringify(a));
+}
+const ciGet = id => ciAll()[id] || null;
+const custName = () => $('saleCName').value.trim(), custPhone = () => $('saleCPhone').value.trim();
 function orderPayload() {
   const items = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
   if (!items.length) throw new Error('Hóa đơn chưa có món nào.');
   if (!$('saleTable').value) throw new Error('Không còn bàn trống để chọn.');
-  return { id: cur.id, table: $('saleTable').value, custType: $('saleCust').value, note: $('saleNote').value, items, vipCode: isVip($('saleCust').value) ? vipCode : '' };
+  return { id: cur.id, table: $('saleTable').value, custType: $('saleCust').value, note: $('saleNote').value, custName: custName(), custPhone: custPhone(), items, vipCode: isVip($('saleCust').value) ? vipCode : '' };
 }
 const heldCache = new Map(), paidCache = new Map();   // bộ nhớ tạm chi tiết hóa đơn để gọi lại / xem lại tức thì
 function calcReceipt(items, custType) {
@@ -835,10 +850,10 @@ function calcReceipt(items, custType) {
   const discount = Math.round(gross * pc / 100), pr = curPromo();
   return { lines, gross, discPct: pc, discount, promoName: pr ? pr.name : '', promoPct: pr ? pr.pct : 0, promoAmt: pr ? Math.round((gross - discount) * pr.pct / 100) : 0 };
 }
-const snapshotOrder = () => ({ cart: { ...cart }, cur: { ...cur }, table: $('saleTable').value, cust: $('saleCust').value, note: $('saleNote').value, vip: vipCode });
+const snapshotOrder = () => ({ cart: { ...cart }, cur: { ...cur }, table: $('saleTable').value, cust: $('saleCust').value, note: $('saleNote').value, cn: $('saleCName').value, cp: $('saleCPhone').value, vip: vipCode });
 function restoreOrder(sn) {
   if (Object.keys(cart).length) return false;   // đã bắt đầu hóa đơn khác thì không ghi đè
-  cart = sn.cart; cur = sn.cur; fillTables(); $('saleTable').value = sn.table; $('saleCust').value = sn.cust; $('saleNote').value = sn.note; vipCode = sn.vip || ''; renderCart(); return true;
+  cart = sn.cart; cur = sn.cur; fillTables(); $('saleTable').value = sn.table; $('saleCust').value = sn.cust; $('saleNote').value = sn.note; $('saleCName').value = sn.cn || ''; $('saleCPhone').value = sn.cp || ''; vipCode = sn.vip || ''; renderCart(); return true;
 }
 $('btnHold').onclick = async () => {
   let payload; try { payload = orderPayload(); } catch (err) { return toast(err.message, true); }
@@ -846,7 +861,7 @@ $('btnHold').onclick = async () => {
   const sn = snapshotOrder(); resetOrder(); toast('Đang treo hóa đơn…');
   try {
     const r = await api('saveOrder', payload, 'HOLD');
-    heldCache.delete(r.id); heldTables.add(r.table); fillTables(); toast(`Đã treo ${r.id} · ${r.table}. Bạn có thể làm hóa đơn tiếp theo.`); loadHeld();
+    ciSave(r.id, payload.custName, payload.custPhone); heldCache.delete(r.id); heldTables.add(r.table); fillTables(); toast(`Đã treo ${r.id} · ${r.table}. Bạn có thể làm hóa đơn tiếp theo.`); loadHeld();
   } catch (err) { loadHeld(true); toast(err.message + (restoreOrder(sn) ? '' : ' (hóa đơn vừa treo chưa được lưu, hãy tạo lại)'), true); }
 };
 $('btnPay').onclick = async () => {
@@ -854,12 +869,13 @@ $('btnPay').onclick = async () => {
   try { beepPay(); } catch (e) {}
   const sn = snapshotOrder(), c = calcReceipt(payload.items, payload.custType);
   payState = { method: (sn.cur.guest && sn.cur.guest.payMethod === 'cash') ? 'cash' : 'bank', given: 0, grand: 0, guest: sn.cur.guest || null };
-  showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN'), guest: sn.cur.guest || null }, { pending: true });
+  showReceipt({ id: sn.cur.id || '…', table: payload.table, custType: payload.custType, ...c, openTime: sn.cur.openTime, payTime: new Date().toLocaleString('vi-VN'), guest: sn.cur.guest || null, custName: payload.custName, custPhone: payload.custPhone }, { pending: true });
   resetOrder();
   try {
     const r = await api('saveOrder', payload, 'PAY');
-    showReceipt(r);
-    paidCache.set(r.id, Promise.resolve({ id: r.id, items: payload.items, table: payload.table, custType: payload.custType, note: payload.note,
+    ciSave(r.id, payload.custName, payload.custPhone);
+    showReceipt({ ...r, custName: r.custName || payload.custName, custPhone: r.custPhone || payload.custPhone });
+    paidCache.set(r.id, Promise.resolve({ id: r.id, items: payload.items, table: payload.table, custType: payload.custType, note: payload.note, custName: payload.custName, custPhone: payload.custPhone,
       openTime: sn.cur.openTime, payTime: r.payTime, staff: r.staff || r.staffName || (USER && USER.name),
       gross: r.gross, discount: r.discount, discPct: r.discPct, promoName: r.promoName, promoPct: r.promoPct, promoAmt: r.promoAmt,
       src: r.src || (sn.cur.guest ? 'KHACH_DAT' : ''), guestName: r.guestName || (sn.cur.guest && sn.cur.guest.name) || '', guestPhone: r.guestPhone || (sn.cur.guest && sn.cur.guest.phone) || '', guestAddr: r.guestAddr || (sn.cur.guest && sn.cur.guest.addr) || '' }));
@@ -915,7 +931,7 @@ function showReceipt(r, opt) {
       <div id="printTag" style="font-weight:400;font-style:italic;font-size:13px;margin-top:2px" hidden></div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(tableLabel(r.table, !!gst))}</div>
-    <div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(cleanGuestAddr(gst.addr))}</div>` : ''}` : ''}
+    ${!gst && (r.custName || r.custPhone) ? `<div><b>Khách:</b> ${esc(r.custName || '')}${r.custName && r.custPhone ? ' · ' : ''}${esc(r.custPhone || '')}</div>` : ''}<div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(cleanGuestAddr(gst.addr))}</div>` : ''}` : ''}
     <hr>
     <table><tr><th>Tên món</th><th class="n">SL</th><th class="n">ĐG</th><th class="n">Thành tiền</th></tr>
       ${r.lines.map((l, i) => `<tr><td>${i + 1}. ${esc(l.name)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
@@ -1178,7 +1194,7 @@ $('heldList').addEventListener('click', e => {
     if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
     let o = heldCache.get(id); if (!o) o = await api('getOrder', id);
     cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openFull || o.openTime, table: o.table, guest: o.src === 'KHACH_DAT' ? { name: o.guestName, phone: o.guestPhone, addr: o.guestAddr, payMethod: o.payMethod, payState: o.payState } : null };
-    fillTables(); $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; vipCode = ''; renderCart();
+    fillTables(); $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; { const ci = ciGet(o.id) || {}; $('saleCName').value = o.custName || ci.n || ''; $('saleCPhone').value = o.custPhone || ci.p || ''; } vipCode = ''; renderCart();
     if (isVip(o.custType)) { toast('Hóa đơn khách VIP: hãy quét lại mã QR để xác nhận.'); scanVipCode().then(c => { if (c) { vipCode = c; renderCart(); } else toast('Chưa quét mã VIP, hóa đơn sẽ không lưu được.', true); }); }
     toast('Đã gọi lại ' + o.id); try { beepRecall(); } catch (e) {}
   });
@@ -1226,7 +1242,8 @@ async function viewInvoice(inv, inReport) {
   else if (!$('sale').classList.contains('on')) openTab('sale');   // còn lại hiện ở tab Bán hàng
   showReceipt({ id: o.id || inv.id, table: o.table || inv.table, custType: o.custType, ...c,
     openTime: o.openTime, payTime: o.payTime || `${toDMY(inv.day)} ${inv.time}`, staff: o.staff || o.staffName || inv.staff,
-    src: o.src, guestName: o.guestName, guestPhone: o.guestPhone, guestAddr: o.guestAddr }, { reprint: true, slot: !!(inReport && $('repSlot')) });
+    src: o.src, guestName: o.guestName, guestPhone: o.guestPhone, guestAddr: o.guestAddr,
+    custName: o.custName || (ciGet(o.id || inv.id) || {}).n || '', custPhone: o.custPhone || (ciGet(o.id || inv.id) || {}).p || '' }, { reprint: true, slot: !!(inReport && $('repSlot')) });
   $('findBox').hidden = true; $('receipt').scrollIntoView({ behavior: 'smooth' });
   const rid = o.id || inv.id;   // hóa đơn tiền mặt: hiện lại tiền khách đưa / tiền trả lại đã lưu (máy chủ chưa hỗ trợ thì bỏ qua)
   api('getPayment', rid).then(pm => {
