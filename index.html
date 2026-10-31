@@ -2131,12 +2131,15 @@ function gwTick() {   // chữ "Vui lòng đợi trong ít phút..." chạy dầ
 }
 async function guestInit() {
   $('login').hidden = true; $('app').hidden = true; $('guest').hidden = false; gwTick(); try { beepGuestLoad(); } catch (e) {}
-  try { const cs = store.get('bh_gshop'); if (cs) $('gBig').textContent = String(cs).toUpperCase(); } catch (e) {}   // hiện ngay tên quán đã lưu từ lần mở trước
+  try { const cs = store.get('bh_gshop'); if (cs) $('gBig').textContent = String(cs).toUpperCase(); } catch (e) {}
+  try { const gt = JSON.parse(store.get('bh_gtheme') || 'null'); if (gt) { SETTINGS = normSettings({ theme: gt.theme, fx: gt.fx, guestInk: gt.ink }); applyTheme(SETTINGS.theme, SETTINGS.fx); } } catch (e) {}   // áp ngay chủ đề đã lưu từ lần mở trước, đỡ bị nháy màu   // hiện ngay tên quán đã lưu từ lần mở trước
   try {
     const d = await gcall('guestMenu'); G.menu = d.menu; G.tables = d.tables; G.on = d.enabled; G.pay = d.pay || {}; G.custDisc = Number(d.custDisc) || 0; G.promos = d.promos || []; G.busy = d.busy || {};
     try { const sv = JSON.parse(store.get('bh_ginfo') || '{}'); G.name = sv.name || ''; G.phone = sv.phone || ''; G.addr = String(sv.addr || '').replace(/\s*\(\s*-?\d+\.\d+\s*,\s*-?\d+\.\d+\s*\)\s*$/, ''); } catch (e) {}
     $('gShop').textContent = d.shop || 'Cửa hàng'; if (d.shop) { try { store.set('bh_gshop', d.shop); } catch (e) {} document.title = d.shop; } $('gLoad').hidden = true; $('gHead').hidden = false;
-    if (/^#[0-9a-f]{6}$/i.test(d.ink || '')) $('guest').style.setProperty('--gInk', d.ink);
+    SETTINGS = normSettings({ theme: d.theme, fx: d.fx, guestInk: d.ink }); applyTheme(SETTINGS.theme, SETTINGS.fx);   // chủ đề ngày lễ do admin chọn ở Quản trị > Thiết đặt
+    try { store.set('bh_gtheme', JSON.stringify({ theme: d.theme, fx: d.fx, ink: d.ink })); } catch (e) {}
+    if (/^#[0-9a-f]{6}$/i.test(d.ink || '')) $('guest').style.setProperty('--gInk', d.ink); else $('guest').style.removeProperty('--gInk');
     if (d.address) { $('gAddrShop').textContent = d.address; $('gAddrShop').hidden = false; }
     const b = GQ.get('ban'); if (b && d.tables.includes(b)) { if (G.busy[b]) toast(b + ' ' + G.busy[b] + '. Vui lòng chọn bàn khác.', true); else G.table = b; }
     gRender(); try { beepGuestForm(); } catch (e) {} setInterval(gPoll, 8000); setInterval(gSyncTables, 10000);
