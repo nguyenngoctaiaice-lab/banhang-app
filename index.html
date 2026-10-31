@@ -889,7 +889,9 @@ const dtParse = s => { const m = String(s || '').match(/(\d{1,2}\/\d{1,2}\/\d{4}
 
 const homeReceipt = () => $('rcHome').after($('receipt'));   // đưa hóa đơn về chỗ cũ (tab Bán hàng)
 /* Hóa đơn của khách đặt online: bàn ghi "Online Bàn 4"; địa chỉ chỉ còn tọa độ, bỏ chữ "Vị trí GPS" và ngoặc */
-const onlineTable = t => /^online\b/i.test(String(t || '')) ? String(t) : 'Online ' + t;
+/* Dòng "Bàn:" trên hóa đơn: tại quầy -> "Số 2"; khách đặt online -> "Online Số 2" (bỏ chữ "Bàn" vì đã có nhãn "Bàn:" phía trước) */
+const tableNo = t => { const x = String(t || '').replace(/^online\s*/i, '').replace(/^bàn\s*/i, '').trim(); return /^\d/.test(x) ? 'Số ' + x : x; };
+const tableLabel = (t, online) => online ? ('Online ' + tableNo(t)).trim() : tableNo(t);
 function cleanGuestAddr(a) {
   let x = String(a || '').replace(/vị\s*trí\s*gps\s*:?/gi, '').trim();
   const m = x.match(/^\(\s*(-?\d+\.\d+\s*,\s*-?\d+\.\d+)\s*\)$/);
@@ -912,7 +914,7 @@ function showReceipt(r, opt) {
       <div class="ttl">HÓA ĐƠN THANH TOÁN</div><div style="font-weight:700;font-size:16px">Số HD: ${esc(r.id)}</div>
       <div id="printTag" style="font-weight:400;font-style:italic;font-size:13px;margin-top:2px" hidden></div></div>
     <hr>
-    <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(gst ? onlineTable(r.table) : r.table)}</div>
+    <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(tableLabel(r.table, !!gst))}</div>
     <div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(cleanGuestAddr(gst.addr))}</div>` : ''}` : ''}
     <hr>
     <table><tr><th>Tên món</th><th class="n">SL</th><th class="n">ĐG</th><th class="n">Thành tiền</th></tr>
@@ -1058,7 +1060,7 @@ async function makeQr(text) {
 }
 function receiptText(r, st, grand, when) {
   const lines = (r.lines || []).map((l, i) => `${i + 1}. ${l.name} x${l.qty} = ${money(l.amount)}`).join('\n');
-  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${(r.guest || r.src === 'KHACH_DAT') ? onlineTable(r.table) : r.table}\n${lines}${Number(r.promoAmt) > 0 ? `\nKhuyến mại ${r.promoName} (${r.promoPct}%): -${money(r.promoAmt)}` : ''}\nTỔNG THANH TOÁN: ${money(grand)}đ\n(${moneyWords(grand)})\n✓ Đã thanh toán. Cảm ơn quý khách!`;
+  return `${st.shopName || 'Cửa hàng'}\nHÓA ĐƠN ${r.id}\n${when} · ${'Bàn ' + tableLabel(r.table, !!(r.guest || r.src === 'KHACH_DAT'))}\n${lines}${Number(r.promoAmt) > 0 ? `\nKhuyến mại ${r.promoName} (${r.promoPct}%): -${money(r.promoAmt)}` : ''}\nTỔNG THANH TOÁN: ${money(grand)}đ\n(${moneyWords(grand)})\n✓ Đã thanh toán. Cảm ơn quý khách!`;
 }
 function loadH2C() {
   return new Promise((ok, no) => {
