@@ -164,6 +164,27 @@
   @media screen { #sale.inked #receipt, #sale.inked #receipt th { color:var(--saleInk); } #sale.inked #receipt { border-color:#111; } }
   .promoBar.static span { position:static; display:block; text-align:center; animation:none; font-size:17px; }
   @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; } }
+  /* Trang trí 2 bên trái/phải theo chủ đề (cành hoa, đèn lồng treo, câu đối); chỉ hiện khi màn hình đủ rộng, phần giữa giữ nguyên */
+  .side { position:fixed; top:0; bottom:0; width:clamp(90px,calc((100vw - 996px)/2 - 6px),200px); pointer-events:none; z-index:-1; display:none; overflow:hidden; }
+  .side.l { left:0; } .side.r { right:0; }
+  body:not(.isGuest) .side { top:104px; }   /* nằm dưới thanh tiêu đề + thanh tab */
+  body.isGuest .side { width:clamp(90px,calc((100vw - 540px)/2 - 6px),200px); }
+  @media (min-width:1180px) { body:not(.isGuest) .side.on { display:block; } }
+  @media (min-width:740px) { body.isGuest .side.on { display:block; } }
+  .side .br { position:absolute; top:0; width:100%; height:auto; max-width:150px; }
+  .side.l .br { left:0; } .side.r .br { right:0; transform:scaleX(-1); }
+  .side .hg { position:absolute; top:0; width:34px; text-align:center; transform-origin:50% 0; animation:sideSway 4.5s ease-in-out infinite alternate; }
+  .side .hg i { display:block; width:2px; height:var(--len); margin:0 auto; background:linear-gradient(#d4a017,#f3d36b); }
+  .side .hg b { display:block; font-size:30px; line-height:1; font-weight:400; }
+  .side .sc { position:absolute; top:150px; left:50%; width:70px; margin-left:-35px; padding:16px 4px 14px; box-sizing:border-box; text-align:center; font-weight:700; font-size:12px; line-height:1.45; border:2px solid var(--scInk); border-radius:3px; color:var(--scInk); background:var(--scBg); box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .side .sc::before { content:""; position:absolute; left:-4px; right:-4px; top:-7px; height:7px; border-radius:3px; background:var(--scInk); }
+  .side .sc::after { content:""; position:absolute; left:50%; bottom:-22px; width:3px; height:20px; margin-left:-1.5px; background:var(--scInk); box-shadow:-6px 4px 0 var(--scInk), 6px 4px 0 var(--scInk); }
+  .side .sc div { white-space:nowrap; }
+  .side .bt { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:38px; line-height:1; opacity:.95; }
+  @keyframes sideSway { from { transform:rotate(-4deg); } to { transform:rotate(4deg); } }
+  @media (max-height:560px) { .side .bt { display:none; } }
+  @media (prefers-reduced-motion:reduce) { .side .hg { animation:none; } }
+  @media print { .side { display:none !important; } }
   #fx { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:15; }
   #fx span { position:absolute; top:-30px; opacity:.85; animation:fxFall linear forwards, fxSway ease-in-out infinite alternate; }
   @keyframes fxFall { to { top:105vh; } }
@@ -466,6 +487,7 @@
 </main>
 </div>
 <div id="fx"></div>
+<div id="sideL" class="side l"></div><div id="sideR" class="side r"></div>
 <div id="toast"></div>
 
 <script>
@@ -1856,7 +1878,68 @@ const THEMES = [
   T('autumn', 'Mùa thu (lá vàng)', '#9a3412', '#fbf2e6', '#f0ddc4', '#fae6cc', '#e4cfb2', '#b45309', '#d9822b', '#fff4b8', ['🍂', '🍁', '🌰']),
   T('rainy', 'Mùa mưa', '#334155', '#f1f4f7', '#dde3ea', '#e6ebf1', '#c8d1dc', '#475569', '#64748b', '#fde68a', ['💧', '☔']),
 ];
-let fxTimer = 0, fxBurst = 0, fxList = [], curTheme = '';
+/* ---------- Trang trí 2 bên theo chủ đề: [đèn treo 1, đèn treo 2, hình dưới chân, câu bên trái, câu bên phải, (màu hoa 1, màu hoa 2)] ---------- */
+const SIDE = {
+  tet: ['🏮', '🧧', '🌼', 'Năm Mới|Hạnh Phúc|Bình An|Đến', 'Ngày Xuân|Vinh Hoa|Phú Quý|Về', ['#ffd54a', '#ff9eb5']],
+  valentine: ['💖', '🎀', '🌹', 'Tình Yêu|Ngọt Ngào|Hạnh Phúc', 'Valentine|14/2|Yêu Thương', ['#ff5c7c', '#ffc2d1']],
+  women83: ['🌷', '🎀', '🌸', 'Mừng Ngày|Quốc Tế|Phụ Nữ|8/3', 'Xinh Đẹp|Hạnh Phúc|Thành Công', ['#f472b6', '#fbcfe8']],
+  hung: ['🏮', '🍃', '🌼', 'Giỗ Tổ|Hùng Vương|10/3 Âm', 'Uống Nước|Nhớ Nguồn', ['#fbbf24', '#f59e0b']],
+  liberation: ['⭐', '🚩', '🕊️', 'Mừng Ngày|Giải Phóng|Miền Nam|30/4', 'Thống Nhất|Non Sông', ['#ef4444', '#fde047']],
+  labor: ['⭐', '🚩', '🌹', 'Mừng Ngày|Quốc Tế|Lao Động|1/5', 'Lao Động|Vinh Quang', ['#ef4444', '#fde047']],
+  children: ['🎈', '🎈', '🌈', 'Mừng Ngày|Thiếu Nhi|1/6', 'Vui Khỏe|Học Giỏi|Ngoan Ngoãn', ['#fb923c', '#38bdf8']],
+  vulan: ['🏮', '🪷', '🤍', 'Vu Lan|Báo Hiếu', 'Công Cha|Nghĩa Mẹ', ['#f9a8d4', '#ffffff']],
+  national: ['⭐', '🚩', '⭐', 'Mừng Ngày|Quốc Khánh|2/9', 'Độc Lập|Tự Do|Hạnh Phúc', ['#ef4444', '#fde047']],
+  midautumn: ['🏮', '🌕', '🥮', 'Vui Tết|Trung Thu', 'Đêm Rằm|Trăng Sáng', ['#fbbf24', '#fde68a']],
+  women2010: ['🌹', '💐', '🌸', 'Mừng Ngày|Phụ Nữ|Việt Nam|20/10', 'Xinh Tươi|Hạnh Phúc', ['#e879f9', '#fbcfe8']],
+  teacher: ['📚', '🌻', '🌸', 'Mừng Ngày|Nhà Giáo|Việt Nam|20/11', 'Tôn Sư|Trọng Đạo', ['#facc15', '#93c5fd']],
+  halloween: ['🎃', '🦇', '👻', 'Happy|Halloween|31/10', 'Trick|Or|Treat', ['#fb923c', '#a78bfa']],
+  christmas: ['🎄', '⭐', '🎁', 'Giáng Sinh|An Lành', 'Merry|Christmas', ['#ef4444', '#ffffff']],
+  newyear: ['🎆', '🎉', '✨', 'Chúc Mừng|Năm Mới|1/1', 'Vạn Sự|Như Ý', ['#fde047', '#93c5fd']],
+  party: ['⭐', '🚩', '🌹', 'Mừng Đảng|Mừng Xuân|3/2', 'Quang Vinh|Muôn Năm', ['#ef4444', '#fde047']],
+  doctor: ['💚', '✚', '🌿', 'Ngày Thầy|Thuốc|Việt Nam|27/2', 'Lương Y|Như|Từ Mẫu', ['#34d399', '#ffffff']],
+  hanthuc: ['🍡', '🌸', '🍃', 'Tết|Hàn Thực|3/3 Âm', 'Bánh Trôi|Bánh Chay', ['#fbbf24', '#fde68a']],
+  nguyentieu: ['🏮', '🌕', '🧧', 'Rằm Tháng|Giêng', 'Nguyên Tiêu|Vui Vẻ', ['#fbbf24', '#fda4af']],
+  vesak: ['🪷', '🕯️', '🌼', 'Mừng|Phật Đản', 'An Lạc|Từ Bi', ['#f9a8d4', '#fde68a']],
+  doanngo: ['🍑', '🌿', '🍃', 'Tết|Đoan Ngọ|5/5 Âm', 'Diệt Sâu|Bọ', ['#fdba74', '#86efac']],
+  family: ['🏠', '💛', '🌻', 'Ngày Gia Đình|Việt Nam|28/6', 'Gia Đình|Hạnh Phúc', ['#fb923c', '#fde047']],
+  press: ['📰', '✒️', '⭐', 'Ngày Báo Chí|Cách Mạng|21/6', 'Ngòi Bút|Chân Thực', ['#60a5fa', '#fde047']],
+  martyr: ['🕯️', '🌼', '⭐', 'Tri Ân|Liệt Sĩ|27/7', 'Uống Nước|Nhớ Nguồn', ['#fde047', '#ffffff']],
+  august: ['🚩', '⭐', '🚩', 'Cách Mạng|Tháng Tám|19/8', 'Độc Lập|Tự Do', ['#ef4444', '#fde047']],
+  capital: ['⭐', '🌸', '🕊️', 'Giải Phóng|Thủ Đô|10/10', 'Hà Nội|Ngàn Năm|Văn Hiến', ['#f9a8d4', '#fde047']],
+  business: ['💼', '📈', '⭐', 'Ngày Doanh|Nhân|Việt Nam|13/10', 'Kinh Doanh|Thịnh Vượng', ['#60a5fa', '#fde047']],
+  blackfriday: ['🏷️', '💥', '⭐', 'Black|Friday', 'Siêu|Giảm Giá', ['#fde047', '#ffffff']],
+  army: ['⭐', '🌿', '🌿', 'Quân Đội|Nhân Dân|22/12', 'Vì Nhân Dân|Phục Vụ', ['#a3e635', '#fde047']],
+  taoquan: ['🔥', '🐟', '🧧', 'Ông Công|Ông Táo', 'Tiễn Táo|Về Trời', ['#fbbf24', '#ef4444']],
+  mothers: ['🌹', '💐', '💗', 'Ngày|Của Mẹ', 'Mẹ Là|Tất Cả', ['#f472b6', '#fbcfe8']],
+  fathers: ['👔', '💙', '⭐', 'Ngày|Của Cha', 'Cha Là|Điểm Tựa', ['#60a5fa', '#ffffff']],
+  easter: ['🐣', '🥚', '🌷', 'Happy|Easter', 'Phục Sinh|Vui Vẻ', ['#c4b5fd', '#fde68a']],
+  spring: ['🌸', '🦋', '🌼', 'Xuân Về|Hoa Nở', 'Vạn Sự|Như Ý', ['#f9a8d4', '#fde047']],
+  summer: ['☀️', '🐚', '🌊', 'Mùa Hè|Sôi Động', 'Biển Xanh|Nắng Vàng', ['#fde047', '#7dd3fc']],
+  autumn: ['🍂', '🍁', '🌰', 'Mùa Thu|Lá Vàng', 'Thu Về|Se Lạnh', ['#fb923c', '#fbbf24']],
+  rainy: ['☔', '💧', '💧', 'Mùa Mưa|Ấm Áp', 'Cà Phê|Ngày Mưa', ['#94a3b8', '#bae6fd']],
+};
+function branchSvg(c1, c2) {
+  const pts = [[15, 8], [30, 13], [58, 26], [95, 14], [70, 45], [100, 40], [120, 60], [135, 70], [85, 72], [55, 100], [40, 135], [110, 110], [135, 150], [128, 172]];
+  const fl = pts.map((q, i) => `<circle cx="${q[0]}" cy="${q[1]}" r="${i % 3 === 0 ? 9 : 7}" fill="${i % 2 ? c2 : c1}"/><circle cx="${q[0]}" cy="${q[1]}" r="2.2" fill="#c2410c"/>`).join('');
+  return `<svg class="br" viewBox="0 0 150 190" aria-hidden="true"><g fill="none" stroke="#6b3f1d" stroke-linecap="round"><path d="M0 6C30 10 60 30 85 70S120 140 140 185" stroke-width="5"/><path d="M45 22C55 10 75 8 95 14M70 52C95 48 115 55 135 70M85 70C70 95 55 105 40 135M110 110C125 120 132 135 135 150" stroke-width="3"/></g>`
+    + `<g fill="#4d7c0f" opacity=".85"><ellipse cx="45" cy="38" rx="9" ry="4" transform="rotate(35 45 38)"/><ellipse cx="108" cy="80" rx="9" ry="4" transform="rotate(-30 108 80)"/><ellipse cx="62" cy="118" rx="9" ry="4" transform="rotate(50 62 118)"/></g>${fl}</svg>`;
+}
+function sideHtml(t, isRight) {
+  const d = SIDE[t.id]; if (!d) return '';
+  const pal = d[5] || [t.bar[1], t.v.accent], words = d[isRight ? 4 : 3].split(/[|\s]+/).filter(Boolean);
+  const pos = isRight ? 'right' : 'left', hg = (x, len, e, delay) => `<div class="hg" style="${pos}:calc(${x}% - 17px);--len:${len}px;animation-delay:${delay}s"><i></i><b>${e}</b></div>`;
+  return branchSvg(pal[0], pal[1]) + hg(68, 70, d[0], 0) + hg(84, 118, d[1], -2)
+    + `<div class="sc" style="--scBg:linear-gradient(${t.bar[0]},${t.bar[1]});--scInk:${t.barInk}">${words.map(w => `<div>${esc(w)}</div>`).join('')}</div>`
+    + `<div class="bt">${d[2]}</div>`;
+}
+function applySide(t) {
+  const L = $('sideL'), R = $('sideR'); if (!L || !R) return;
+  document.body.classList.toggle('isGuest', /[?&](ban|dat)(=|&|$)/.test(location.search));
+  const on = !!SIDE[t.id];
+  L.innerHTML = on ? sideHtml(t, false) : ''; R.innerHTML = on ? sideHtml(t, true) : '';
+  L.classList.toggle('on', on); R.classList.toggle('on', on);
+}
+let fxTimer = 0, fxBurst = 0, fxList = [], curTheme = '', curSide = '';
 function stopFx() { clearTimeout(fxTimer); clearInterval(fxBurst); fxTimer = fxBurst = 0; $('fx').innerHTML = ''; }
 function fxDrop() {
   const e = document.createElement('span'), dur = 9 + Math.random() * 7;
@@ -1890,6 +1973,7 @@ function applySaleInk(v) {
 function applyTheme(id, fxOn) {
   const t = THEMES.find(x => x.id === id) || THEMES[0], on = fxOn === undefined ? getSettings().fx : fxOn, r = document.documentElement.style;
   Object.keys(t.v).forEach(k => r.setProperty('--' + k, t.v[k]));
+  if (t.id !== curSide) { curSide = t.id; applySide(t); }
   applyBar(getSettings().barBg, getSettings().barInk);
   applySaleInk(getSettings().saleInk);
   const key = t.id + '|' + on;
