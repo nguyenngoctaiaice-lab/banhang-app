@@ -234,7 +234,7 @@
       </div>
       <div class="row one" style="margin-top:8px">
         <div><label>Tên khách</label><input id="saleCName" placeholder="Không bắt buộc" autocomplete="off"></div>
-        <div><label>SĐT khách</label><input id="saleCPhone" type="tel" inputmode="tel" placeholder="Không bắt buộc" autocomplete="off"></div>
+        <div><label>SĐT khách</label><input id="saleCPhone" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="15" placeholder="Không bắt buộc" autocomplete="off"></div>
       </div>
       <h2 style="margin-top:12px">Thực đơn</h2><select id="menuPick"></select>
     </div>
@@ -835,6 +835,7 @@ function ciSave(id, n, p) {
   store.set(CI_KEY, JSON.stringify(a));
 }
 const ciGet = id => ciAll()[id] || null;
+$('saleCPhone').addEventListener('input', e => { const v = e.target.value.replace(/\D/g, ''); if (v !== e.target.value) e.target.value = v; });   // SĐT chỉ cho nhập số
 const custName = () => $('saleCName').value.trim(), custPhone = () => $('saleCPhone').value.trim();
 function orderPayload() {
   const items = Object.keys(cart).map(id => ({ id, qty: cart[id] }));
@@ -931,7 +932,7 @@ function showReceipt(r, opt) {
       <div id="printTag" style="font-weight:400;font-style:italic;font-size:13px;margin-top:2px" hidden></div></div>
     <hr>
     <div><b>Ngày:</b> ${esc(when)}</div><div><b>Bàn:</b> ${esc(tableLabel(r.table, !!gst))}</div>
-    ${!gst && (r.custName || r.custPhone) ? `<div><b>Khách:</b> ${esc(r.custName || '')}${r.custName && r.custPhone ? ' · ' : ''}${esc(r.custPhone || '')}</div>` : ''}<div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(cleanGuestAddr(gst.addr))}</div>` : ''}` : ''}
+    ${!gst && (r.custName || r.custPhone) ? `<div><b>Khách:</b> ${esc(r.custName || '')}${r.custName && r.custPhone ? ' · ' : ''}${esc(r.custPhone || '')}${r.custPhone ? ` <button type="button" class="noprint" data-a="cpphone" data-p="${esc(String(r.custPhone).replace(/\D/g, ''))}" title="Sao chép số điện thoại" style="border:0;background:none;padding:0 4px;cursor:pointer;font-size:14px;line-height:1">📋</button>` : ''}</div>` : ''}<div><b>Phục vụ:</b> ${gst ? 'Khách tự đặt' : esc(staff)}</div><div><b>Thu ngân:</b> ${esc(staff)}</div><div><b>KH:</b> ${esc(r.custType)}</div>${gst ? `<div><b>Khách đặt:</b> ${esc(gst.name)}${gst.phone ? ' · ' + esc(gst.phone) : ''}</div>${gst.addr ? `<div><b>Địa chỉ:</b> ${esc(cleanGuestAddr(gst.addr))}</div>` : ''}` : ''}
     <hr>
     <table><tr><th>Tên món</th><th class="n">SL</th><th class="n">ĐG</th><th class="n">Thành tiền</th></tr>
       ${r.lines.map((l, i) => `<tr><td>${i + 1}. ${esc(l.name)}</td><td class="n">${esc(l.qty)}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.amount)}</td></tr>`).join('')}</table>
@@ -1145,6 +1146,7 @@ $('receipt').addEventListener('click', e => {
   if (a === 'qk') { const v = Number(e.target.dataset.v); payState.given = v || payState.grand; const i = $('cashIn'); i.value = payState.given.toLocaleString('vi-VN'); applyPay(); return; }
   if ((a === 'confirm' || a === 'confirmprint') && !cashOk()) return toast('Tiền khách đưa chưa đủ, còn thiếu ' + money(payState.grand - payState.given) + 'đ.', true);
   if ((a === 'confirm' || a === 'confirmprint') && payState.guest && payState.guest.payMethod === 'bank' && payState.guest.payState !== 'DA_NHAN' && payState.method === 'bank' && !confirm('Khách đặt này CHƯA được xác nhận đã chuyển khoản. Vẫn xác nhận thanh toán?')) return;
+  if (a === 'cpphone') { const ph = e.target.dataset.p || ''; copyText(ph).then(ok => toast(ok ? 'Đã sao chép SĐT ' + ph : 'Không sao chép được, hãy chép tay: ' + ph, !ok)); return; }
   if (a === 'print') run(e.target, doPrint);
   if (a === 'close') {
     // Chưa bấm Xác nhận mà Đóng: hóa đơn đã lưu "đã thanh toán" trên máy chủ -> đưa về mục Hóa đơn đang treo (không để mất)
