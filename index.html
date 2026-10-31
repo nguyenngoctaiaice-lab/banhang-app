@@ -24,7 +24,7 @@
   main { max-width:980px; margin:0 auto; padding:0 8px 40px; }
   section.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; }
   section.tab.on { display:block; }
-  .grow2 { flex-wrap:nowrap; gap:8px; margin-top:6px; } .grow2 > * { flex:1 1 0; min-width:0; }
+  .row.grow2 { flex-wrap:nowrap; gap:8px; margin-top:6px; } .row.grow2 > * { flex:1 1 0; min-width:0; white-space:normal; line-height:1.2; }
   .rstar { color:#f5a623; letter-spacing:1px; white-space:nowrap; font-weight:700; } .rstar i { font-style:normal; color:#cfcfcf; }
   .gstt { font-size:12px; font-weight:700; padding:1px 7px; border-radius:10px; white-space:nowrap; display:inline-block; }
   .gstt.ok { background:#dff5e4; color:#1b7a34; } .gstt.no { background:#fdeaea; color:#b3261e; } .gstt.off { background:#eee; color:#666; }
@@ -175,9 +175,28 @@
   .bdg { display:inline-block; min-width:18px; height:18px; line-height:18px; padding:0 5px; margin-right:6px; border-radius:9px; background:#d32f2f; color:#fff; font-size:12px; font-weight:700; text-align:center; vertical-align:middle; }
   details.fold[open] > summary { margin-bottom:6px; }
   @media (prefers-reduced-motion:reduce) { #toast { transition:none; } }
+  #bootLoad { position:fixed; inset:0; z-index:99999; background:#fcf8e8; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#14690a; padding:0 12px; }
+  #bootLoad[hidden] { display:none; }
+  #bootLoad .bt { position:relative; width:max-content; max-width:100%; font-weight:700; font-size:clamp(15px,4.8vw,22px); white-space:nowrap; }
+  #bootLoad .bt .bg { visibility:hidden; } #bootLoad .bt .bl { position:absolute; left:0; top:0; }
+  #bootLoad .bs { margin-top:10px; font-size:13px; font-style:italic; opacity:.8; }
+  #bootLoad .bbar { margin-top:14px; width:min(220px,60vw); height:5px; border-radius:3px; background:rgba(20,105,10,.15); overflow:hidden; }
+  #bootLoad .bbar i { display:block; height:100%; width:40%; border-radius:3px; background:#14690a; animation:bootbar 1.2s ease-in-out infinite; }
+  @keyframes bootbar { 0% { margin-left:-40%; } 100% { margin-left:100%; } }
 </style>
 </head>
 <body>
+<div id="bootLoad" hidden><div class="bt"><span class="bg">Đang tải dữ liệu vui lòng đợi...</span><span class="bl" id="bootTxt"></span></div><div class="bs" id="bootStage">Đang khởi động…</div><div class="bbar"><i></i></div></div>
+<script>
+(function () {
+  var q = location.search; if (/[?&](ban|dat)=/.test(q)) return;   // trang khách đặt món có màn hình chờ riêng
+  var el = document.getElementById('bootLoad'); el.hidden = false;
+  var msg = Array.from('Đang tải dữ liệu vui lòng đợi...'), n = 0, t = document.getElementById('bootTxt');
+  window.__bootTimer = setInterval(function () { n = (n + 1) % (msg.length + 8); t.textContent = msg.slice(0, Math.min(n, msg.length)).join(''); }, 110);
+  window.bootStage = function (x) { var e = document.getElementById('bootStage'); if (e) e.textContent = x; };
+  window.bootDone = function () { clearInterval(window.__bootTimer); el.hidden = true; };
+})();
+</script>
 
 <!-- KHÁCH ĐẶT MÓN -->
 <div id="guest" hidden><div class="gload" id="gLoad"><div class="gbig" id="gBig">ĐANG TẢI…</div><div class="gwait" id="gWait"><span class="gwg">Vui lòng đợi trong ít phút...</span><span class="gwl" id="gWaitTxt"></span></div></div><div class="ghead" id="gHead" hidden><div class="shop" id="gShop"></div><div class="sub" id="gAddrShop" hidden></div><div class="ttl">ĐƠN HÀNG ONLINE</div></div><p class="empty" id="gMsg" style="text-align:center"></p><div id="gBody"></div></div>
@@ -2202,12 +2221,15 @@ $('btnGuestQr').onclick = e => run(e.target, async () => {
 setInterval(() => { if (USER && !$('app').hidden && $('sale').classList.contains('on')) loadGuest(true); }, 12000);
 
 (async function boot() {
-  markNative();
-  if (isGuestMode()) return guestInit();
-  applyTheme(getSettings().theme, getSettings().fx);
-  TOKEN = store.get('bh_token');
-  if (TOKEN) { try { await enter(); return; } catch (e) {} }
-  showLogin('');
+  try {
+    markNative();
+    if (isGuestMode()) return guestInit();
+    applyTheme(getSettings().theme, getSettings().fx);
+    TOKEN = store.get('bh_token');
+    if (TOKEN) { window.bootStage && bootStage('Đang tải dữ liệu bán hàng từ máy chủ…'); try { await enter(); return; } catch (e) {} }
+    window.bootStage && bootStage('Đang mở màn hình đăng nhập…');
+    showLogin('');
+  } finally { window.bootDone && bootDone(); }
 })();
 </script>
 </body>
