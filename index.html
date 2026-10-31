@@ -2219,38 +2219,48 @@ function sndWake() {
 }
 ['click', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, sndWake, true));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sndWake(); });
-function sndPlay(name) {
+/* Chỉ phát MỘT âm thanh tại một thời điểm: bấm âm mới thì ngắt ngay âm đang phát (bất kể âm nào) rồi phát âm mới nhất. */
+let sndCur = null, sndSeq = 0;
+function sndStopAll() {
+  sndSeq++;
+  const c = sndCur; sndCur = null;
+  if (c) { try { c.stop(); } catch (e) {} }
+}
+function sndStart(name, onEnd) {   // phát 1 âm (sau khi đã ngắt âm cũ); onEnd gọi khi âm kết thúc hoặc bị ngắt
   const c = sndCtxGet();
   try {
     if (c && sndBuf[name]) {
       if (c.state !== 'running' && c.resume) c.resume().catch(() => {});
-      if (sndNode[name]) { try { sndNode[name].stop(); } catch (e) {} }
-      const src = c.createBufferSource(); src.buffer = sndBuf[name]; src.connect(c.destination); src.start(0); sndNode[name] = src; return;
+      const src = c.createBufferSource(); src.buffer = sndBuf[name]; src.connect(c.destination);
+      if (onEnd) src.onended = onEnd;
+      src.start(0); sndNode[name] = src; sndCur = { stop: () => src.stop() };
+      return sndBuf[name].duration;
     }
   } catch (e) {}
-  try { const a = new Audio(SND[name]); const pr = a.play(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {}   // dự phòng
+  try {
+    const a = new Audio(SND[name]);
+    if (onEnd) { a.onended = onEnd; a.onerror = onEnd; }
+    sndCur = { stop: () => { a.onended = null; a.onerror = null; a.pause(); a.currentTime = 0; if (onEnd) onEnd(); } };   // dự phòng
+    const pr = a.play(); if (pr && pr.catch) pr.catch(() => { if (onEnd) onEnd(); });
+  } catch (e) { if (onEnd) onEnd(); }
+  return 6;
 }
+function sndPlay(name) { sndStopAll(); sndStart(name); }
 function beep() { sndPlay('order'); }       // khách đặt món mới
 function beepEdit() { sndPlay('edit'); }
 /* Phát khi chưa có cử chỉ chạm (lúc vừa mở app): đợi giải mã xong rồi phát, tối đa ~3 giây */
 function sndLater(name) { try { sndWake(); } catch (e) {} let n = 0; const t = setInterval(() => { if (sndBuf[name] || ++n > 30) { clearInterval(t); sndPlay(name); } }, 100); }
 function beepLoading() { sndLater('loading'); }
-function beepWelcome() { try { if (sndNode.loading) sndNode.loading.stop(); } catch (e) {} sndPlay('welcome'); }
+function beepWelcome() { sndPlay('welcome'); }
 function beepNewInv() { sndPlay('newinv'); }   // Tạo hóa đơn mới
 function beepFind() { sndPlay('find'); }   // Tìm lại hóa đơn
 /* Phát và trả về Promise xong khi âm thanh phát hết (để phát tiếp âm thanh khác nối sau) */
-function sndPlayWait(name) {
+function sndPlayWait(name) {   // resolve(true) khi phát HẾT; resolve(false) nếu bị âm khác ngắt giữa chừng
   return new Promise(res => {
-    const c = sndCtxGet();
-    try {
-      if (c && sndBuf[name]) {
-        if (c.state !== 'running' && c.resume) c.resume().catch(() => {});
-        if (sndNode[name]) { try { sndNode[name].stop(); } catch (e) {} }
-        const src = c.createBufferSource(); src.buffer = sndBuf[name]; src.connect(c.destination); src.onended = () => res(); src.start(0); sndNode[name] = src;
-        setTimeout(res, sndBuf[name].duration * 1000 + 400); return;
-      }
-    } catch (e) {}
-    try { const a = new Audio(SND[name]); a.onended = () => res(); a.onerror = () => res(); const pr = a.play(); if (pr && pr.catch) pr.catch(() => res()); setTimeout(res, 6000); } catch (e) { res(); }
+    sndStopAll(); const seq = sndSeq; let done = false;
+    const fin = () => { if (done) return; done = true; res(seq === sndSeq); };
+    const dur = sndStart(name, fin);
+    setTimeout(fin, dur * 1000 + 400);
   });
 }
 function beepClose() { sndPlay('closeR'); }   // Đóng hóa đơn
@@ -2302,7 +2312,7 @@ async function loadGuest(silent) {
       : `<div class="empty">${guestAll ? 'Bạn chưa có đơn hàng nào đã xử lý cả.' : 'Bạn chưa có đơn hàng để phê duyệt.'}</div>`;
     if (guestEmptyAfter) {   // vừa bấm nút chuyển danh sách: nếu trống thì đợi tiếng nút phát hết rồi đọc dòng thông báo
       const wait = guestEmptyAfter; guestEmptyAfter = null;
-      if (!r.orders.length) { const nm = guestAll ? 'emptyDone' : 'emptyPend'; wait.then(() => { try { sndPlay(nm); } catch (e) {} }); }
+      if (!r.orders.length) { const nm = guestAll ? 'emptyDone' : 'emptyPend'; wait.then(ok => { if (ok) { try { sndPlay(nm); } catch (e) {} } }); }
     }
   } catch (e) { if (!silent) toast(e.message, true); }
 }
