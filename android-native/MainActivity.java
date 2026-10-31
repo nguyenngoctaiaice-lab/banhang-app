@@ -65,6 +65,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AppBridgePlugin.class);
         super.onCreate(savedInstanceState);
+        // Cho phép web tự phát âm thanh lúc vừa mở app (không cần chạm màn hình trước)
+        try { getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false); } catch (Exception ignored) { }
         showOverlay();
     }
 
