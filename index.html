@@ -205,7 +205,7 @@
   #bootLoad .bbar { margin-top:14px; width:min(220px,60vw); height:5px; border-radius:3px; background:rgba(20,105,10,.15); overflow:hidden; }
   #bootLoad .bbar i { display:block; height:100%; width:40%; border-radius:3px; background:#14690a; animation:bootbar 1.2s ease-in-out infinite; }
   @keyframes bootbar { 0% { margin-left:-40%; } 100% { margin-left:100%; } }
-#toast { z-index:9600; }
+#toast { z-index:9600; top:50%; bottom:auto; left:50%; transform:translate(-50%,-50%); text-align:center; font-size:16px; padding:14px 22px; box-shadow:0 8px 30px rgba(0,0,0,.35); }   /* mọi thông báo hiện giữa màn hình */
 #busyOv { position:fixed; inset:0; z-index:9500; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); cursor:progress; touch-action:none; }
 #busyOv.on { display:flex; }
 #busyOv .bx { background:#fff; color:#222; border-radius:14px; padding:22px 28px; min-width:230px; max-width:86vw; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.35); }
