@@ -205,6 +205,14 @@
   #bootLoad .bbar { margin-top:14px; width:min(220px,60vw); height:5px; border-radius:3px; background:rgba(20,105,10,.15); overflow:hidden; }
   #bootLoad .bbar i { display:block; height:100%; width:40%; border-radius:3px; background:#14690a; animation:bootbar 1.2s ease-in-out infinite; }
   @keyframes bootbar { 0% { margin-left:-40%; } 100% { margin-left:100%; } }
+#toast { z-index:9600; }
+#busyOv { position:fixed; inset:0; z-index:9500; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); cursor:progress; touch-action:none; }
+#busyOv.on { display:flex; }
+#busyOv .bx { background:#fff; color:#222; border-radius:14px; padding:22px 28px; min-width:230px; max-width:86vw; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.35); }
+#busyOv .sp { width:42px; height:42px; margin:0 auto 12px; border:5px solid #e6d5c3; border-top-color:#b71c1c; border-radius:50%; animation:busySpin .8s linear infinite; }
+#busyOv .bt { font-weight:700; font-size:17px; }
+#busyOv .bs { font-size:13px; opacity:.7; margin-top:4px; }
+@keyframes busySpin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -489,6 +497,7 @@
 </div>
 <div id="fx"></div>
 <div id="sideL" class="side l"></div><div id="sideR" class="side r"></div>
+<div id="busyOv" aria-live="assertive"><div class="bx"><div class="sp"></div><div class="bt" id="busyTxt">Đang xử lý…</div><div class="bs">Vui lòng đợi, không bấm thêm.</div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -565,7 +574,26 @@ async function call(fn, args, withToken = true) {
   }
   return r.data;
 }
-const api = (fn, ...a) => call(fn, a);
+/* Màn chờ: làm mờ toàn bộ màn hình + chặn bấm cho tới khi máy chủ xử lý xong (tránh bấm nhiều lần / bấm nhầm) */
+let busyN = 0, busyAt = 0, busyTimer = null;
+function busyShow(msg) {
+  busyN++; clearTimeout(busyTimer); busyTimer = null;
+  $('busyTxt').textContent = msg + ', vui lòng đợi…';
+  if (!$('busyOv').classList.contains('on')) { busyAt = Date.now(); $('busyOv').classList.add('on'); try { document.activeElement && document.activeElement.blur(); } catch (e) {} }
+}
+function busyHide() {
+  busyN = Math.max(0, busyN - 1);
+  if (busyN) return;
+  const wait = Math.max(0, 350 - (Date.now() - busyAt));   // hiện tối thiểu 0,35 giây để không nhấp nháy
+  busyTimer = setTimeout(() => { if (!busyN) $('busyOv').classList.remove('on'); }, wait);
+}
+const BUSY_MSG = { cancelHeld: 'Đang hủy hóa đơn', getOrder: 'Đang tải hóa đơn', cancelPayment: 'Đang đưa hóa đơn về treo', savePayment: 'Đang lưu tiền khách đưa',
+  approveGuestOrder: 'Đang duyệt đơn khách đặt', rejectGuestOrder: 'Đang từ chối đơn', setGuestPayState: 'Đang ghi nhận thanh toán', deleteGuestOrder: 'Đang xóa đơn',
+  saveImport: 'Đang lưu phiếu nhập', adminUpdateImport: 'Đang lưu phiếu nhập', adminDeleteImport: 'Đang xóa phiếu nhập',
+  saveStocktake: 'Đang lưu kiểm kê', adminUpdateStocktake: 'Đang lưu kiểm kê', adminDeleteStocktake: 'Đang xóa kiểm kê', adminApplyStocktake: 'Đang cân đối kho', adminUnapplyStocktake: 'Đang hoàn tác cân đối',
+  adminSaveUser: 'Đang lưu nhân viên', adminDeleteUser: 'Đang xóa nhân viên', savePromo: 'Đang lưu khuyến mại', deletePromo: 'Đang xóa khuyến mại', saveShopSettings: 'Đang lưu thông tin hóa đơn' };
+const busyMsg = (fn, a) => fn === 'saveOrder' ? (a[1] === 'PAY' ? 'Đang thanh toán hóa đơn' : 'Đang treo hóa đơn') : BUSY_MSG[fn];
+const api = (fn, ...a) => { const m = busyMsg(fn, a); if (!m) return call(fn, a); busyShow(m); return call(fn, a).finally(busyHide); };
 
 function toast(msg, isErr) {
   const t = $('toast'); t.textContent = msg; t.className = 'show' + (isErr ? ' err' : '');
@@ -1249,12 +1277,14 @@ $('heldList').addEventListener('click', e => {
   const b = e.target.closest('button') || e.target.closest('tr.hrow'); if (!b) return; const id = b.dataset.id;
   if (b.dataset.a === 'recall') return b.dataset.busy ? null : run(b, async () => {
     b.dataset.busy = 1; setTimeout(() => delete b.dataset.busy, 1500);
+    busyShow('Đang gọi lại hóa đơn'); try {
     if (Object.keys(cart).length) throw new Error('Hãy treo hoặc thanh toán hóa đơn đang làm trước khi gọi lại hóa đơn khác.');
     let o = heldCache.get(id); if (!o) o = await api('getOrder', id);
     cart = {}; o.items.forEach(i => cart[i.id] = i.qty); cur = { id: o.id, openTime: o.openFull || o.openTime, table: o.table, guest: o.src === 'KHACH_DAT' ? { name: o.guestName, phone: o.guestPhone, addr: o.guestAddr, payMethod: o.payMethod, payState: o.payState } : null };
     fillTables(); $('saleTable').value = o.table; $('saleCust').value = o.custType; $('saleNote').value = o.note || ''; { const ci = ciGet(o.id) || {}; $('saleCName').value = o.custName || ci.n || ''; $('saleCPhone').value = o.custPhone || ci.p || ''; } vipCode = ''; renderCart();
     if (isVip(o.custType)) { toast('Hóa đơn khách VIP: hãy quét lại mã QR để xác nhận.'); scanVipCode(true).then(c => { if (c) { vipCode = c; fillVipInfo(); renderCart(); } else toast('Chưa quét mã VIP, hóa đơn sẽ không lưu được.', true); }); }
     toast('Đã gọi lại ' + o.id); try { beepRecall(); } catch (e) {}
+    } finally { busyHide(); }
   });
   if (b.dataset.a === 'gpay') return run(b, async () => { await api('setGuestPayState', id, 'DA_NHAN'); toast('Đã ghi nhận nhận tiền chuyển khoản.'); loadHeld(); });
   if (b.dataset.a === 'void') {
