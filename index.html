@@ -2459,8 +2459,8 @@ async function loginCheck() {
   if (!USER || !(USER.role === 'ADMIN' || (USER.roles || []).indexOf('BANHANG') >= 0)) return [];
   for (let t = 0; t < 2; t++) {   // lỗi mạng thì thử lại 1 lần
     try {
-      const r = await api('listGuestOrders', true), seen = ratingSeen() || {};
-      const pend = r.orders.filter(o => o.status === 'CHO').length;
+      const rp = await api('listGuestOrders', false), r = await api('listGuestOrders', true), seen = ratingSeen() || {};
+      const pend = rp.orders.filter(o => o.status === 'CHO').length;
       const fresh = r.orders.filter(o => (o.rating || o.review) && !seen[o.id]).length;
       const q = []; if (pend > 0) q.push('loginOrder'); if (fresh > 0) q.push('loginRate');
       return q;
