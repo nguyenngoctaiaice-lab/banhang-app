@@ -1071,10 +1071,12 @@ async function initPush() {
   try {
     const C = appNat();
     if (!C) { toast('[Push 0] Không phải app Android (không thấy Capacitor native).', true); return; }
-    if (!USER || !C.registerPlugin) { toast('[Push 0] Thiếu USER hoặc registerPlugin.', true); return; }
+    if (!USER) { toast('[Push 0] Chưa có USER.', true); return; }
     if (!(USER.role === 'ADMIN' || (USER.roles || []).includes('BANHANG'))) { toast('[Push 0] Tài khoản không có quyền BANHANG/ADMIN.', true); return; }
     toast('[Push 1] Bắt đầu đăng ký thông báo...');
-    pushP = pushP || C.registerPlugin('PushNotifications');
+    // Trang mở từ server.url chỉ có cầu nối gốc (không có registerPlugin) -> dùng Capacitor.Plugins; có registerPlugin thì dùng làm phương án dự phòng
+    pushP = pushP || (C.Plugins && C.Plugins.PushNotifications) || (C.registerPlugin ? C.registerPlugin('PushNotifications') : null);
+    if (!pushP) { toast('[Push 0] App không có plugin PushNotifications (cần cài APK build mới).', true); return; }
     let perm = await pushP.checkPermissions();
     if (perm.receive !== 'granted') perm = await pushP.requestPermissions();
     if (perm.receive !== 'granted') { toast('Chưa bật quyền thông báo nên sẽ không báo khi tắt màn hình. Vào Cài đặt > Ứng dụng > Quản lý bán hàng > Thông báo để bật.', true); return; }
