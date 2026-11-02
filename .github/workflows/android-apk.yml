@@ -112,6 +112,11 @@ jobs:
           name: QuanLyBanHang-apk
           path: QuanLyBanHang.apk
 
+      - name: Xóa release cũ để lấy ngày mới
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete apk-latest --cleanup-tag -y || true
+
       - name: Đăng lên Releases (link tải cố định)
         uses: softprops/action-gh-release@v2
         with:
