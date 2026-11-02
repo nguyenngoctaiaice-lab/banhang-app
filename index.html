@@ -701,7 +701,7 @@ async function enter() {
   const mine = TABS.filter(t => admin || t.roles.some(r => (USER.roles || []).includes(r)));
   $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
   $('login').hidden = true; $('app').hidden = false;
-  resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id); refreshBadges();
+  resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id); refreshBadges(); initPush();
 }
 function openTab(t) {
   if (t !== 'admin') applyTheme(getSettings().theme, getSettings().fx);
@@ -1065,6 +1065,26 @@ function showReceipt(r, opt) {
 }
 /* App Android (Capacitor): WebView không in/chia sẻ được như Chrome, nên gọi sang cầu nối gốc "AppBridge" */
 const appNat = () => { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() ? C : null; };
+/* Thông báo đẩy (FCM) cho app Android: thu ngân/admin nhận thông báo đơn khách đặt mới kể cả khi tắt màn hình */
+let pushP = null, pushBound = false;
+async function initPush() {
+  try {
+    const C = appNat(); if (!C || !USER || !C.registerPlugin) return;
+    if (!(USER.role === 'ADMIN' || (USER.roles || []).includes('BANHANG'))) return;
+    pushP = pushP || C.registerPlugin('PushNotifications');
+    let perm = await pushP.checkPermissions();
+    if (perm.receive !== 'granted') perm = await pushP.requestPermissions();
+    if (perm.receive !== 'granted') { toast('Chưa bật quyền thông báo nên sẽ không báo khi tắt màn hình. Vào Cài đặt > Ứng dụng > Quản lý bán hàng > Thông báo để bật.', true); return; }
+    await pushP.createChannel({ id: 'don_moi', name: 'Đơn khách đặt', description: 'Báo khi có đơn khách đặt món', importance: 5, vibration: true, visibility: 1 });
+    if (!pushBound) {
+      pushBound = true;
+      pushP.addListener('registration', t => { call('registerPush', [t.value]).catch(() => {}); });
+      pushP.addListener('registrationError', e => console.log('push lỗi', e));
+      pushP.addListener('pushNotificationActionPerformed', () => { try { openTab('sale'); } catch (e) {} });
+    }
+    await pushP.register();
+  } catch (e) { console.log('push', e); }
+}
 const appCall = (m, o) => { const C = appNat(); return C.nativePromise ? C.nativePromise('AppBridge', m, o || {}) : C.Plugins.AppBridge[m](o || {}); };
 function fitPaper() {
   const el = $('receipt'); if (!el) return;
