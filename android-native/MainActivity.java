@@ -1,5 +1,7 @@
 package vn.banhang.app;
 
+import android.app.NotificationManager;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -19,10 +21,15 @@ import android.widget.TextView;
 
 import com.getcapacitor.BridgeActivity;
 
+import me.leolin.shortcutbadger.ShortcutBadger;
+
 public class MainActivity extends BridgeActivity {
     private static final String MSG = "Đang tải dữ liệu vui lòng đợi...";
     private static final int GREEN = Color.parseColor("#14690A");
     private static final int CREAM = Color.parseColor("#FCF8E8");
+
+    // true khi app đang hiện trên màn hình (service thông báo dùng để biết có cần tự hiện thông báo hay không)
+    public static volatile boolean inFront = false;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private FrameLayout overlay;
@@ -134,6 +141,25 @@ public class MainActivity extends BridgeActivity {
                 overlay = null;
             }
         }, 300);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        inFront = true;
+        // Mở app = đã xem: xóa số trên biểu tượng và các thông báo đang treo
+        try {
+            getSharedPreferences("badge_prefs", Context.MODE_PRIVATE).edit().putInt("n", 0).apply();
+            ShortcutBadger.removeCount(getApplicationContext());
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancelAll();
+        } catch (Exception ignored) { }
+    }
+
+    @Override
+    public void onPause() {
+        inFront = false;
+        super.onPause();
     }
 
     @Override
