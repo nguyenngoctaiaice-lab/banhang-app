@@ -1897,8 +1897,8 @@ $('btnRevokeAll').onclick = e => {
   }
   delete b.dataset.sure; b.textContent = REVOKE_LABEL;
   run(b, async () => {
-    const r = await api('adminRevokeAllDevices');
-    toast(r.count ? `Đã xóa ${r.count} thiết bị. Chỉ còn thiết bị đang dùng của ${r.keep}.` : 'Không có thiết bị nào cần xóa.'); loadAdmin();
+    const r = await api('adminPurgeDevices', false);
+    toast(r.count ? `Đã xóa ${r.count} thiết bị khỏi danh sách (giữ lại thiết bị đang dùng và admin).` : 'Không có thiết bị nào cần xóa.'); loadAdmin();
   });
 };
 
