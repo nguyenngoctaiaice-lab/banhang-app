@@ -1078,12 +1078,12 @@ async function initPush() {
     await pushP.createChannel({ id: 'don_moi', name: 'Đơn khách đặt', description: 'Báo khi có đơn khách đặt món', importance: 5, vibration: true, visibility: 1 });
     if (!pushBound) {
       pushBound = true;
-      pushP.addListener('registration', t => { call('registerPush', [t.value]).catch(() => {}); });
-      pushP.addListener('registrationError', e => console.log('push lỗi', e));
+      pushP.addListener('registration', t => { call('registerPush', [t.value]).then(() => toast('Đã bật thông báo đơn mới cho máy này.')).catch(e => toast('Đăng ký thông báo lỗi: ' + (e && e.message || e), true)); });
+      pushP.addListener('registrationError', e => toast('Firebase lỗi: ' + JSON.stringify(e), true));
       pushP.addListener('pushNotificationActionPerformed', () => { try { openTab('sale'); } catch (e) {} });
     }
     await pushP.register();
-  } catch (e) { console.log('push', e); }
+  } catch (e) { toast('Thông báo đẩy lỗi: ' + (e && e.message || e), true); }
 }
 const appCall = (m, o) => { const C = appNat(); return C.nativePromise ? C.nativePromise('AppBridge', m, o || {}) : C.Plugins.AppBridge[m](o || {}); };
 function fitPaper() {
