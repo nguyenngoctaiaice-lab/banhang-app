@@ -107,9 +107,12 @@ jobs:
           # 1) thư viện đặt số huy hiệu cho nhiều hãng máy
           g = 'android/app/build.gradle'
           s = open(g, encoding='utf-8').read()
+          
           if 'ShortcutBadger' not in s:
-              s = re.sub(r'(^dependencies\s*\{)', r"\1\n    implementation 'me.leolin:ShortcutBadger:1.1.22'", s, count=1, flags=re.M)
+              s = re.sub(r'(^dependencies\s*\{)', r"\1\n    implementation 'me.leolin:ShortcutBadger:1.1.22'\n    implementation 'com.google.firebase:firebase-messaging:23.4.1'", s, count=1, flags=re.M)
               open(g, 'w', encoding='utf-8').write(s)
+
+
           # 2) thay service nhận thông báo mặc định của plugin bằng service của mình
           p = 'android/app/src/main/AndroidManifest.xml'
           m = open(p, encoding='utf-8').read()
