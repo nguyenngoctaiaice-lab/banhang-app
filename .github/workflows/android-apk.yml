@@ -98,6 +98,35 @@ jobs:
           PY
           grep -n -E 'uses-permission|uses-feature' android/app/src/main/AndroidManifest.xml
 
+      - name: Thêm số huy hiệu trên biểu tượng app (nhận thông báo đẩy kiểu Zalo)
+        run: |
+          D=android/app/src/main/java/vn/banhang/app
+          cp android-native/BadgeMessagingService.java "$D/BadgeMessagingService.java"
+          python3 - <<'PY'
+          import re
+          # 1) thư viện đặt số huy hiệu cho nhiều hãng máy
+          g = 'android/app/build.gradle'
+          s = open(g, encoding='utf-8').read()
+          if 'ShortcutBadger' not in s:
+              s = re.sub(r'(^dependencies\s*\{)', r"\1\n    implementation 'me.leolin:ShortcutBadger:1.1.22'", s, count=1, flags=re.M)
+              open(g, 'w', encoding='utf-8').write(s)
+          # 2) thay service nhận thông báo mặc định của plugin bằng service của mình
+          p = 'android/app/src/main/AndroidManifest.xml'
+          m = open(p, encoding='utf-8').read()
+          if 'xmlns:tools' not in m:
+              m = m.replace('<manifest ', '<manifest xmlns:tools="http://schemas.android.com/tools" ', 1)
+          if 'BadgeMessagingService' not in m:
+              svc = (
+                  '    <service android:name="com.capacitorjs.plugins.pushnotifications.MessagingService" tools:node="remove" />\n'
+                  '    <service android:name="vn.banhang.app.BadgeMessagingService" android:exported="false">\n'
+                  '        <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>\n'
+                  '    </service>\n')
+              m = m.replace('</application>', svc + '</application>', 1)
+          open(p, 'w', encoding='utf-8').write(m)
+          PY
+          grep -n "ShortcutBadger" android/app/build.gradle
+          grep -n -E "BadgeMessagingService|MessagingService|xmlns:tools" android/app/src/main/AndroidManifest.xml
+
       - name: Build APK
         working-directory: android
         run: |
