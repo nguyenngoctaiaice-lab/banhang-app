@@ -1069,8 +1069,11 @@ const appNat = () => { const C = window.Capacitor; return C && C.isNativePlatfor
 let pushP = null, pushBound = false;
 async function initPush() {
   try {
-    const C = appNat(); if (!C || !USER || !C.registerPlugin) return;
-    if (!(USER.role === 'ADMIN' || (USER.roles || []).includes('BANHANG'))) return;
+    const C = appNat();
+    if (!C) { toast('[Push 0] Không phải app Android (không thấy Capacitor native).', true); return; }
+    if (!USER || !C.registerPlugin) { toast('[Push 0] Thiếu USER hoặc registerPlugin.', true); return; }
+    if (!(USER.role === 'ADMIN' || (USER.roles || []).includes('BANHANG'))) { toast('[Push 0] Tài khoản không có quyền BANHANG/ADMIN.', true); return; }
+    toast('[Push 1] Bắt đầu đăng ký thông báo...');
     pushP = pushP || C.registerPlugin('PushNotifications');
     let perm = await pushP.checkPermissions();
     if (perm.receive !== 'granted') perm = await pushP.requestPermissions();
@@ -1078,10 +1081,11 @@ async function initPush() {
     await pushP.createChannel({ id: 'don_moi', name: 'Đơn khách đặt', description: 'Báo khi có đơn khách đặt món', importance: 5, vibration: true, visibility: 1 });
     if (!pushBound) {
       pushBound = true;
-      pushP.addListener('registration', t => { call('registerPush', [t.value]).then(() => toast('Đã bật thông báo đơn mới cho máy này.')).catch(e => toast('Đăng ký thông báo lỗi: ' + (e && e.message || e), true)); });
+      pushP.addListener('registration', t => { toast('[Push 3] Đã có mã Firebase, đang gửi lên máy chủ...'); call('registerPush', [t.value]).then(() => toast('[Push 4] XONG: đã bật thông báo đơn mới cho máy này.')).catch(e => toast('Đăng ký thông báo lỗi: ' + (e && e.message || e), true)); });
       pushP.addListener('registrationError', e => toast('Firebase lỗi: ' + JSON.stringify(e), true));
       pushP.addListener('pushNotificationActionPerformed', () => { try { openTab('sale'); } catch (e) {} });
     }
+    toast('[Push 2] Đã tạo kênh, đang xin mã Firebase...');
     await pushP.register();
   } catch (e) { toast('Thông báo đẩy lỗi: ' + (e && e.message || e), true); }
 }
