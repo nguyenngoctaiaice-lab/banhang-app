@@ -216,6 +216,17 @@
 #busyOv .bt { font-weight:700; font-size:17px; }
 #busyOv .bs { font-size:13px; opacity:.7; margin-top:4px; }
 @keyframes busySpin { to { transform:rotate(360deg); } }
+
+  #licLock { position:fixed; inset:0; z-index:9400; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; padding:16px; }
+  #licLock.on { display:flex; }
+  #licLock .lbox { background:var(--card,#fff); color:var(--ink,#222); border-radius:14px; padding:22px 20px; width:100%; max-width:380px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.4); }
+  #licLock h2 { margin:0 0 6px; font-size:20px; }
+  #licLock .lmsg { margin:0 0 14px; font-size:14px; line-height:1.5; }
+  #licLock input { width:100%; text-align:center; font-size:18px; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+  #licLock .lrow { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  #licBadge { border:1px solid currentColor; background:transparent; color:inherit; border-radius:999px; padding:3px 10px; font-size:12px; cursor:pointer; }
+  #licBadge.warn { background:#d93025; color:#fff; border-color:#d93025; }
+  #licAdm table td, #licAdm table th { font-size:13px; }
 </style>
 </head>
 <body>
@@ -252,7 +263,7 @@
 
 <!-- ỨNG DỤNG -->
 <div id="app" hidden>
-<header><b>PHẦN MỀM QUẢN LÝ BÁN HÀNG<span class="ver" data-pre=" - PHIÊN BẢN "></span></b><small id="who"></small><button id="btnLogout">Đăng xuất</button></header>
+<header><b>PHẦN MỀM QUẢN LÝ BÁN HÀNG<span class="ver" data-pre=" - PHIÊN BẢN "></span></b><small id="who"></small><button id="licBadge" hidden></button><button id="btnLogout">Đăng xuất</button></header>
 <nav id="tabs"></nav>
 <main>
 
@@ -367,6 +378,22 @@
 </section>
 
 <section class="tab" id="admin">
+  <details class="fold" id="licAdm" hidden>
+    <summary>🔑 Bản quyền &amp; Key (chỉ Admin tối cao)</summary>
+    <p id="licCur" class="empty" style="margin:0"></p>
+    <div class="row" style="align-items:end">
+      <div><label>Ngày giờ hết hạn của key</label><input id="licExp" type="datetime-local"></div>
+      <div style="max-width:90px"><label>Số key</label><input id="licCnt" type="number" min="1" max="50" value="1"></div>
+      <button class="btn" id="licCreate" style="flex:0 0 auto">Tạo key</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn ghost sm" data-lq="30">+30 ngày</button><button class="btn ghost sm" data-lq="90">+90 ngày</button><button class="btn ghost sm" data-lq="180">+180 ngày</button><button class="btn ghost sm" data-lq="365">+365 ngày</button>
+    </div>
+    <textarea id="licOut" rows="3" readonly placeholder="Key vừa tạo sẽ hiện ở đây" style="width:100%;margin-top:8px"></textarea>
+    <button class="btn ghost sm" id="licCopy">Sao chép</button>
+    <div id="licList" class="wrap"></div>
+  </details>
+
   <details class="fold">
     <summary>Tìm hóa đơn (chuyên sâu)</summary>
     <div class="row" style="align-items:end">
@@ -501,6 +528,12 @@
 </div>
 <div id="fx"></div>
 <div id="sideL" class="side l"></div><div id="sideR" class="side r"></div>
+<div id="licLock" aria-live="assertive"><div class="lbox">
+  <h2 id="licTitle">🔒 Phần mềm đã hết hạn</h2>
+  <p class="lmsg" id="licMsg"></p>
+  <input id="licKey" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="24" autocomplete="off" autocapitalize="characters">
+  <div class="lrow"><button class="btn" id="licGo">Nhập key / Gia hạn</button><button class="btn ghost" id="licClose" hidden>Đóng</button><button class="btn ghost" id="licOut2">Đăng xuất</button></div>
+</div></div>
 <div id="busyOv" aria-live="assertive"><div class="bx"><div class="sp"></div><div class="bt" id="busyTxt">Đang xử lý…</div><div class="bs">Vui lòng đợi, không bấm thêm.</div></div></div>
 <div id="toast"></div>
 
@@ -582,6 +615,7 @@ async function call(fn, args, withToken = true) {
   } catch (e) { throw new Error('Không kết nối được máy chủ. Kiểm tra mạng, API_URL và quyền "Anyone" của bản triển khai.'); }
   if (!r.ok) {
     const m = String(r.error || 'Lỗi không rõ.');
+    if (m.includes('LICENSE_REQUIRED')) { showLicLock(null); throw new Error('Phần mềm đã hết hạn. Hãy nhập key để gia hạn.'); }
     if (m.includes('PHIEN_HET_HAN')) { showLogin('Phiên đăng nhập đã hết hạn hoặc thiết bị không còn quyền.'); throw new Error('Hết phiên đăng nhập.'); }
     throw new Error(m);
   }
@@ -674,6 +708,61 @@ $('lPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnLogin
 $('btnLogout').onclick = () => { call('logout', []).catch(() => {}); showLogin(''); };
 
 /* ---------- Vào ứng dụng theo vai trò ---------- */
+
+/* ---------- Bản quyền (key hết hạn) ---------- */
+let LIC = null;
+function paintLic() {
+  const b = $('licBadge');
+  if (!LIC || !LIC.needed) { b.hidden = true; return; }
+  b.hidden = false; b.className = LIC.daysLeft <= 7 ? 'warn' : '';
+  b.textContent = LIC.daysLeft <= 7 ? `🔑 Còn ${LIC.daysLeft} ngày · Gia hạn` : '🔑 Bản quyền';
+}
+function showLicLock(l) {
+  LIC = Object.assign(LIC || { needed: true }, l || { ok: false });
+  const locked = !LIC.ok;
+  $('licTitle').textContent = locked ? '🔒 Phần mềm đã hết hạn' : '🔑 Gia hạn bản quyền';
+  $('licMsg').textContent = locked
+    ? 'Hạn sử dụng đã kết thúc' + (LIC.expText ? ' lúc ' + LIC.expText : '') + '. Nhập key mới để tiếp tục sử dụng.'
+    : 'Hạn hiện tại: ' + LIC.expText + ' (còn ' + LIC.daysLeft + ' ngày). Nhập key mới để gia hạn.';
+  $('licClose').hidden = locked;
+  if (locked) $('login').hidden = true;
+  $('licKey').value = ''; $('licLock').classList.add('on');
+}
+$('licBadge').onclick = () => showLicLock(LIC);
+$('licClose').onclick = () => $('licLock').classList.remove('on');
+$('licOut2').onclick = () => { $('licLock').classList.remove('on'); $('btnLogout').click(); };
+$('licKey').addEventListener('keydown', e => { if (e.key === 'Enter') $('licGo').click(); });
+$('licGo').onclick = e => run(e.target, async () => {
+  const code = $('licKey').value.trim(); if (!code) throw new Error('Hãy nhập key.');
+  const r = await call('activateLicense', [code]);
+  LIC = Object.assign(LIC || {}, r, { needed: true });
+  $('licLock').classList.remove('on'); toast('Gia hạn thành công, dùng được đến ' + r.expText);
+  await enter();
+});
+/* Admin tối cao: tạo / xem / xóa key */
+const licLocal = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+function licQuick(days) { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(23, 59, 0, 0); $('licExp').value = licLocal(d.getTime()); }
+async function loadLicAdm() {
+  if (!$('licExp').value) licQuick(30);
+  const r = await call('adminListKeys', []);
+  $('licCur').innerHTML = r.license.exp ? `Hạn hiện tại của phần mềm: <b>${esc(r.license.expText)}</b> ${r.license.ok ? '(còn ' + r.license.daysLeft + ' ngày)' : '<span class="neg">(ĐÃ HẾT HẠN)</span>'}` : '<span class="neg">Chưa kích hoạt key nào.</span>';
+  $('licList').innerHTML = r.keys.length ? `<table><tr><th>Key</th><th>Hết hạn</th><th>Trạng thái</th><th></th></tr>${r.keys.map(k =>
+    `<tr><td><code>${esc(k.code)}</code></td><td>${esc(k.expText)}</td><td>${k.used ? 'Đã dùng · ' + esc(k.usedBy) + '<br>' + esc(k.usedAt) : 'Chưa dùng'}</td>
+     <td>${k.used ? '' : `<button class="btn ghost sm" data-lcopy="${esc(k.code)}">Chép</button> <button class="btn ghost sm" data-ldel="${esc(k.code)}">Xóa</button>`}</td></tr>`).join('')}</table>` : '<div class="empty">Chưa có key nào.</div>';
+}
+$('licAdm').addEventListener('click', e => {
+  const q = e.target.dataset.lq, c = e.target.dataset.lcopy, d = e.target.dataset.ldel;
+  if (q) return licQuick(Number(q));
+  if (c) { navigator.clipboard && navigator.clipboard.writeText(c); return toast('Đã sao chép ' + c); }
+  if (d) { if (!confirm('Xóa key ' + d + '?')) return; run(e.target, async () => { await call('adminDeleteKey', [d]); await loadLicAdm(); }); }
+});
+$('licCreate').onclick = e => run(e.target, async () => {
+  if (!$('licExp').value) throw new Error('Hãy chọn ngày giờ hết hạn.');
+  const keys = await call('adminCreateKeys', [$('licExp').value, Number($('licCnt').value) || 1]);
+  $('licOut').value = keys.join('\n'); toast('Đã tạo ' + keys.length + ' key'); await loadLicAdm();
+});
+$('licCopy').onclick = () => { const v = $('licOut').value; if (v) { navigator.clipboard && navigator.clipboard.writeText(v); toast('Đã sao chép'); } };
+
 const TABS = [
   { id: 'sale', label: 'Bán hàng', roles: ['BANHANG'] },
   { id: 'report', label: 'Báo cáo', roles: ['BAOCAO'] },
@@ -687,7 +776,10 @@ const PROTECTED_USERS = ['admin'];   // tài khoản chủ quán: không có nú
 const roleText = rs => (rs || []).map(r => ROLE_NAME[r] || r).join(', ');
 
 async function enter() {
-  const [dd, ss] = await Promise.all([api('getInitData'), loadServerSettings()]); DATA = dd; USER = DATA.user;
+  const dd = await api('getInitData'); DATA = dd; USER = DATA.user; LIC = dd.license || null;
+  if (dd.locked) { showLicLock(LIC); return; }
+  $('licLock').classList.remove('on');
+  const ss = await loadServerSettings();
   const admin = USER.role === 'ADMIN';
   if (ss === 'empty' && admin && store.get(SET_KEY)) { try { api('saveShopSettings', JSON.parse(store.get(SET_KEY))).catch(() => {}); } catch (e) {} }
   setTimeout(() => { loadQRLib().catch(() => {}); loadH2C().catch(() => {}); }, 1500);
@@ -704,7 +796,7 @@ async function enter() {
   const today = new Date().toLocaleDateString('sv-SE'); $('repFrom').value = today; $('repTo').value = today;
   const mine = TABS.filter(t => admin || t.roles.some(r => (USER.roles || []).includes(r)));
   $('tabs').innerHTML = mine.map(t => `<button data-t="${t.id}">${t.id === 'report' && !admin ? 'Báo cáo ngày' : t.label}</button>`).join('');
-  $('login').hidden = true; $('app').hidden = false;
+  $('login').hidden = true; $('app').hidden = false; paintLic();
   resetOrder(); impLines = []; renderImp(); countLines = []; cntEditing = ''; openTab(mine[0].id); refreshBadges(); initPush();
 }
 function openTab(t) {
@@ -1798,6 +1890,7 @@ async function refreshBadges() {   // chỉ admin: đợt kiểm kê chờ cân 
   } catch (e) {}
 }
 async function loadAdmin() {
+  $('licAdm').hidden = !(USER && USER.super); if (USER && USER.super) loadLicAdm().catch(e => toast(e.message, true));
   fillSettings(); fillTheme(); if (!$('pStart').value && !promoEditId) promoFormReset(); loadPromos();
   try {
     const [users, devs] = await Promise.all([api('adminListUsers'), api('adminListDevices')]);
