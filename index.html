@@ -167,7 +167,7 @@
   @media screen { #sale.inked #receipt, #sale.inked #receipt th { color:var(--saleInk); } #sale.inked #receipt { border-color:#111; } }
   .promoBar.static span { position:static; display:block; text-align:center; animation:none; font-size:17px; }
   @media (prefers-reduced-motion:reduce) { .promoBar span { animation:none; left:8px; } }
-  /* Trang trí 2 bên trái/phải theo chủ đề (cành hoa, đèn lồng treo, câu đối); chỉ hiện khi màn hình đủ rộng, phần giữa giữ nguyên */
+  /* Trang trí 2 bên trái/phải theo chủ đề (cành hoa, đèn treo và một cảnh minh họa riêng của từng sự kiện); chỉ hiện khi màn hình đủ rộng, phần giữa giữ nguyên */
   .side { position:fixed; top:0; bottom:0; width:clamp(90px,calc((100vw - 996px)/2 - 6px),200px); pointer-events:none; z-index:-1; display:none; overflow:hidden; container-type:inline-size; }
   .side.l { left:0; } .side.r { right:0; }
   body:not(.isGuest) .side { top:104px; }   /* nằm dưới thanh tiêu đề + thanh tab */
@@ -179,14 +179,23 @@
   .side .hg { position:absolute; top:0; width:34px; text-align:center; transform-origin:50% 0; animation:sideSway 4.5s ease-in-out infinite alternate; }
   .side .hg i { display:block; width:2px; height:var(--len); margin:0 auto; background:linear-gradient(#d4a017,#f3d36b); }
   .side .hg b { display:block; font-size:30px; line-height:1; font-weight:400; }
-  .side .sc { position:absolute; top:178px; bottom:74px; left:10px; right:10px; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-evenly; align-items:center; padding:14px 2px 12px; text-align:center; font-weight:700; font-size:13px; font-size:clamp(11px,calc(14cqw - 4px),21px); line-height:1.2; border:2px solid var(--scInk); border-radius:3px; color:var(--scInk); background:var(--scBg); box-shadow:0 2px 8px rgba(0,0,0,.3); }
-  .side .sc::before { content:""; position:absolute; left:-5px; right:-5px; top:-8px; height:8px; border-radius:3px; background:var(--scInk); }
-  .side .sc::after { content:""; position:absolute; inset:5px; border:1px solid var(--scInk); border-radius:2px; opacity:.55; }
-  .side .sc div { white-space:nowrap; }
-  .side .sc .tas { position:absolute; left:50%; bottom:-24px; width:3px; height:22px; margin-left:-1.5px; background:var(--scInk); box-shadow:-7px 4px 0 var(--scInk), 7px 4px 0 var(--scInk); }
+  .side .scw { position:absolute; left:0; right:0; bottom:56px; display:flex; flex-direction:column; justify-content:space-evenly; container-type:size; }
+  .side .scw svg { display:block; width:100%; flex:1 1 0; min-height:0; overflow:visible; }
+  .side .scw svg.s2 { display:none; }
+  @container (min-height:620px) { .side .scw svg.s2 { display:block; } }
+  .side .scn .fl, .side .scn .sw, .side .scn .tw, .side .scn .fk { transform-box:fill-box; }
+  .side .scn .fl { transform-origin:50% 50%; animation:scnFloat 5s ease-in-out infinite alternate; }
+  .side .scn .sw { transform-origin:50% 0; animation:scnSway 4s ease-in-out infinite alternate; }
+  .side .scn .tw { transform-origin:50% 50%; animation:scnTw 2.4s ease-in-out infinite alternate; }
+  .side .scn .fk { transform-origin:50% 100%; animation:scnFlick .5s ease-in-out infinite alternate; }
+  @keyframes scnFloat { from { transform:translateY(-4px); } to { transform:translateY(4px); } }
+  @keyframes scnSway { from { transform:rotate(-5deg); } to { transform:rotate(5deg); } }
+  @keyframes scnTw { from { transform:scale(.88) rotate(-4deg); opacity:.8; } to { transform:scale(1.08) rotate(4deg); opacity:1; } }
+  @keyframes scnFlick { from { transform:scale(1,.9); } to { transform:scale(1,1.12); } }
+  @media (prefers-reduced-motion:reduce) { .side .scn * { animation:none !important; } }
   .side .bt { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:38px; line-height:1; opacity:.95; }
   @keyframes sideSway { from { transform:rotate(-4deg); } to { transform:rotate(4deg); } }
-  @media (max-height:560px) { .side .bt { display:none; } }
+  @media (max-height:560px) { .side .bt { display:none; } .side .scw { bottom:8px; } }
   @media (prefers-reduced-motion:reduce) { .side .hg { animation:none; } }
   @media print { .side { display:none !important; } }
   #fx { position:fixed; inset:0; pointer-events:none; overflow:hidden; z-index:15; }
@@ -2042,59 +2051,173 @@ const THEMES = [
   T('autumn', 'Mùa thu (lá vàng)', '#9a3412', '#fbf2e6', '#f0ddc4', '#fae6cc', '#e4cfb2', '#b45309', '#d9822b', '#fff4b8', ['🍂', '🍁', '🌰']),
   T('rainy', 'Mùa mưa', '#334155', '#f1f4f7', '#dde3ea', '#e6ebf1', '#c8d1dc', '#475569', '#64748b', '#fde68a', ['💧', '☔']),
 ];
-/* ---------- Trang trí 2 bên theo chủ đề: [đèn treo 1, đèn treo 2, hình dưới chân, câu bên trái, câu bên phải, (màu hoa 1, màu hoa 2)] ---------- */
-const SIDE = {
-  tet: ['🏮', '🧧', '🌼', 'Năm Mới|Hạnh Phúc|Bình An|Đến', 'Ngày Xuân|Vinh Hoa|Phú Quý|Về', ['#ffd54a', '#ff9eb5']],
-  valentine: ['💖', '🎀', '🌹', 'Tình Yêu|Ngọt Ngào|Hạnh Phúc', 'Valentine|14/2|Yêu Thương', ['#ff5c7c', '#ffc2d1']],
-  women83: ['🌷', '🎀', '🌸', 'Mừng Ngày|Quốc Tế|Phụ Nữ|8/3', 'Xinh Đẹp|Hạnh Phúc|Thành Công', ['#f472b6', '#fbcfe8']],
-  hung: ['🏮', '🍃', '🌼', 'Giỗ Tổ|Hùng Vương|10/3 Âm', 'Uống Nước|Nhớ Nguồn', ['#fbbf24', '#f59e0b']],
-  liberation: ['⭐', '🚩', '🕊️', 'Mừng Ngày|Giải Phóng|Miền Nam|30/4', 'Thống Nhất|Non Sông', ['#ef4444', '#fde047']],
-  labor: ['⭐', '🚩', '🌹', 'Mừng Ngày|Quốc Tế|Lao Động|1/5', 'Lao Động|Vinh Quang', ['#ef4444', '#fde047']],
-  children: ['🎈', '🎈', '🌈', 'Mừng Ngày|Thiếu Nhi|1/6', 'Vui Khỏe|Học Giỏi|Ngoan Ngoãn', ['#fb923c', '#38bdf8']],
-  vulan: ['🏮', '🪷', '🤍', 'Vu Lan|Báo Hiếu', 'Công Cha|Nghĩa Mẹ', ['#f9a8d4', '#ffffff']],
-  national: ['⭐', '🚩', '⭐', 'Mừng Ngày|Quốc Khánh|2/9', 'Độc Lập|Tự Do|Hạnh Phúc', ['#ef4444', '#fde047']],
-  midautumn: ['🏮', '🌕', '🥮', 'Vui Tết|Trung Thu', 'Đêm Rằm|Trăng Sáng', ['#fbbf24', '#fde68a']],
-  women2010: ['🌹', '💐', '🌸', 'Mừng Ngày|Phụ Nữ|Việt Nam|20/10', 'Xinh Tươi|Hạnh Phúc', ['#e879f9', '#fbcfe8']],
-  teacher: ['📚', '🌻', '🌸', 'Mừng Ngày|Nhà Giáo|Việt Nam|20/11', 'Tôn Sư|Trọng Đạo', ['#facc15', '#93c5fd']],
-  halloween: ['🎃', '🦇', '👻', 'Happy|Halloween|31/10', 'Trick|Or|Treat', ['#fb923c', '#a78bfa']],
-  christmas: ['🎄', '⭐', '🎁', 'Giáng Sinh|An Lành', 'Merry|Christmas', ['#ef4444', '#ffffff']],
-  newyear: ['🎆', '🎉', '✨', 'Chúc Mừng|Năm Mới|1/1', 'Vạn Sự|Như Ý', ['#fde047', '#93c5fd']],
-  party: ['⭐', '🚩', '🌹', 'Mừng Đảng|Mừng Xuân|3/2', 'Quang Vinh|Muôn Năm', ['#ef4444', '#fde047']],
-  doctor: ['💚', '✚', '🌿', 'Ngày Thầy|Thuốc|Việt Nam|27/2', 'Lương Y|Như|Từ Mẫu', ['#34d399', '#ffffff']],
-  hanthuc: ['🍡', '🌸', '🍃', 'Tết|Hàn Thực|3/3 Âm', 'Bánh Trôi|Bánh Chay', ['#fbbf24', '#fde68a']],
-  nguyentieu: ['🏮', '🌕', '🧧', 'Rằm Tháng|Giêng', 'Nguyên Tiêu|Vui Vẻ', ['#fbbf24', '#fda4af']],
-  vesak: ['🪷', '🕯️', '🌼', 'Mừng|Phật Đản', 'An Lạc|Từ Bi', ['#f9a8d4', '#fde68a']],
-  doanngo: ['🍑', '🌿', '🍃', 'Tết|Đoan Ngọ|5/5 Âm', 'Diệt Sâu|Bọ', ['#fdba74', '#86efac']],
-  family: ['🏠', '💛', '🌻', 'Ngày Gia Đình|Việt Nam|28/6', 'Gia Đình|Hạnh Phúc', ['#fb923c', '#fde047']],
-  press: ['📰', '✒️', '⭐', 'Ngày Báo Chí|Cách Mạng|21/6', 'Ngòi Bút|Chân Thực', ['#60a5fa', '#fde047']],
-  martyr: ['🕯️', '🌼', '⭐', 'Tri Ân|Liệt Sĩ|27/7', 'Uống Nước|Nhớ Nguồn', ['#fde047', '#ffffff']],
-  august: ['🚩', '⭐', '🚩', 'Cách Mạng|Tháng Tám|19/8', 'Độc Lập|Tự Do', ['#ef4444', '#fde047']],
-  capital: ['⭐', '🌸', '🕊️', 'Giải Phóng|Thủ Đô|10/10', 'Hà Nội|Ngàn Năm|Văn Hiến', ['#f9a8d4', '#fde047']],
-  business: ['💼', '📈', '⭐', 'Ngày Doanh|Nhân|Việt Nam|13/10', 'Kinh Doanh|Thịnh Vượng', ['#60a5fa', '#fde047']],
-  blackfriday: ['🏷️', '💥', '⭐', 'Black|Friday', 'Siêu|Giảm Giá', ['#fde047', '#ffffff']],
-  army: ['⭐', '🌿', '🌿', 'Quân Đội|Nhân Dân|22/12', 'Vì Nhân Dân|Phục Vụ', ['#a3e635', '#fde047']],
-  taoquan: ['🔥', '🐟', '🧧', 'Ông Công|Ông Táo', 'Tiễn Táo|Về Trời', ['#fbbf24', '#ef4444']],
-  mothers: ['🌹', '💐', '💗', 'Ngày|Của Mẹ', 'Mẹ Là|Tất Cả', ['#f472b6', '#fbcfe8']],
-  fathers: ['👔', '💙', '⭐', 'Ngày|Của Cha', 'Cha Là|Điểm Tựa', ['#60a5fa', '#ffffff']],
-  easter: ['🐣', '🥚', '🌷', 'Happy|Easter', 'Phục Sinh|Vui Vẻ', ['#c4b5fd', '#fde68a']],
-  spring: ['🌸', '🦋', '🌼', 'Xuân Về|Hoa Nở', 'Vạn Sự|Như Ý', ['#f9a8d4', '#fde047']],
-  summer: ['☀️', '🐚', '🌊', 'Mùa Hè|Sôi Động', 'Biển Xanh|Nắng Vàng', ['#fde047', '#7dd3fc']],
-  autumn: ['🍂', '🍁', '🌰', 'Mùa Thu|Lá Vàng', 'Thu Về|Se Lạnh', ['#fb923c', '#fbbf24']],
-  rainy: ['☔', '💧', '💧', 'Mùa Mưa|Ấm Áp', 'Cà Phê|Ngày Mưa', ['#94a3b8', '#bae6fd']],
-};
+/* ---------- Trang trí 2 bên theo chủ đề: mỗi bên là một "cảnh" minh họa SVG (3 hình xếp dọc); Ông Công Ông Táo có cảnh vẽ riêng ----------
+   SD(đèn treo 1 + 2, hình dưới chân, [màu 1, màu 2], có cành hoa?, [3 hình bên trái], [3 hình bên phải]); mỗi hình = [tên hình, màu...] (xem MOT) */
+const { SIDE, sideHtml } = (() => {
+  const sp = (R, r, n = 5) => Array.from({ length: n * 2 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / n, k = i % 2 ? r : R; return (Math.cos(a) * k).toFixed(1) + ',' + (Math.sin(a) * k).toFixed(1); }).join(' ');
+  const rays = (n, r1, r2) => Array.from({ length: n }, (_, i) => { const a = i * 2 * Math.PI / n, c = Math.cos(a), s = Math.sin(a); return `M${(c * r1).toFixed(1)} ${(s * r1).toFixed(1)}L${(c * r2).toFixed(1)} ${(s * r2).toFixed(1)}`; }).join('');
+  const rot = (n, f) => Array.from({ length: n }, (_, i) => f(i * 360 / n, i)).join('');
+  const FL = (c1, c2, r = 8) => rot(5, a => `<circle cy="${-r * 1.1}" r="${r}" fill="${c1}" transform="rotate(${a})"/>`) + `<circle r="${r * .5}" fill="${c2}"/>`;
+  const star4 = (x, y, s = 1, c = '#f59e0b') => `<g transform="translate(${x} ${y}) scale(${s})"><path class="tw" d="M0-9Q1-1 9 0Q1 1 0 9Q-1 1-9 0Q-1-1 0-9Z" fill="${c}"/></g>`;
+  const CLOUD = (x, y, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})" fill="#fff" stroke="#e7d2ab" stroke-width="2"><path d="M-30 10Q-40 10-38 0Q-36-10-24-8Q-22-22-8-20Q2-30 16-20Q30-22 32-8Q44-8 42 4Q40 12 30 10Z"/></g>`;
+
+  /* ----- Thư viện hình: gốc (0,0) ở giữa, cỡ khoảng ±40 ----- */
+  const MOT = {
+    lantern: (c = '#dc2626') => `<path d="M0-42V-31" stroke="#d4a017" stroke-width="2"/><rect x="-10" y="-31" width="20" height="6" rx="2" fill="#d4a017"/><ellipse cy="-3" rx="27" ry="25" fill="${c}"/><path d="M-10-26Q-27-3-10 21M0-28V22M10-26Q27-3 10 21" stroke="#0003" stroke-width="1.6" fill="none"/><ellipse cx="-10" cy="-12" rx="5" ry="9" fill="#fff" opacity=".2"/><rect x="-10" y="20" width="20" height="6" rx="2" fill="#d4a017"/><path d="M0 26V46M-5 26V42M5 26V42" stroke="#f3d36b" stroke-width="2" stroke-linecap="round"/>`,
+    starlantern: (c = '#dc2626') => `<path d="M0-44V-34" stroke="#d4a017" stroke-width="2"/><polygon points="${sp(38, 16)}" fill="${c}" stroke="#fbbf24" stroke-width="2.5" stroke-linejoin="round" transform="translate(0 -2)"/><polygon points="${sp(18, 8)}" fill="#fde047" transform="translate(0 -2)"/><path d="M0 34V48M-4 34V44M4 34V44" stroke="#f3d36b" stroke-width="2" stroke-linecap="round"/>`,
+    blossom: (c1 = '#ff9eb5', c2 = '#ffd54a') => `<path d="M-34 40C-20 20 0 6 14-8S30-30 36-40M-8 16C-12 4-20-4-30-8M10-4C12-14 20-20 30-22M-18 28L-34 24" stroke="#6b3f1d" stroke-width="4" fill="none" stroke-linecap="round"/>`
+      + [[-30, -8, 1], [30, -22, 1], [36, -40, 1.1], [-34, 24, .9], [14, -8, 1], [-8, 16, .85], [22, -30, .8]].map(q => `<g transform="translate(${q[0]} ${q[1]}) scale(${q[2]})">${FL(c1, c2, 6.5)}</g>`).join(''),
+    banhchung: () => `<rect x="-30" y="-30" width="60" height="60" rx="9" fill="#3f9142" stroke="#1f5f26" stroke-width="2.5"/><path d="M-10-30V30M10-30V30M-30-10H30M-30 10H30" stroke="#d9e8a0" stroke-width="3"/><rect x="-26" y="-26" width="14" height="10" rx="4" fill="#fff" opacity=".12"/>`,
+    kumquat: () => `<rect x="-2.5" y="8" width="5" height="22" fill="#6b3f1d"/><circle cx="-15" cy="0" r="16" fill="#3f9142"/><circle cx="15" cy="0" r="16" fill="#4d9e47"/><circle cx="0" cy="-16" r="18" fill="#3a8a3d"/>`
+      + [[-18, -4], [-8, 6], [12, 4], [20, -6], [0, -18], [-6, -8], [8, -12], [-20, 8]].map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="4.2" fill="#fb923c" stroke="#ea580c"/>`).join('') + `<path d="M-20 26H20L15 46H-15Z" fill="#dc2626" stroke="#fbbf24" stroke-width="2"/>`,
+    envelope: () => `<rect x="-24" y="-36" width="48" height="72" rx="4" fill="#dc2626" stroke="#fbbf24" stroke-width="2"/><path d="M-24-36L0-14L24-36" fill="none" stroke="#fbbf24" stroke-width="2"/><circle cy="6" r="11" fill="#fbbf24"/><path d="M-5 6H5M0 1V11" stroke="#dc2626" stroke-width="2.4"/>`,
+    ingot: () => `<path d="M-38 4Q-30 28 0 28Q30 28 38 4Q18 10 0 10Q-18 10-38 4Z" fill="#d4a017"/><path d="M-27 4Q-19-22 0-22Q19-22 27 4Q12 10 0 10Q-12 10-27 4Z" fill="#fbbf24"/><path d="M-14-8Q0-16 14-8" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    heart: (c = '#e11d48') => `<path d="M0 32C-44 6-36-28-14-28-6-28 0-22 0-16 0-22 6-28 14-28 36-28 44 6 0 32Z" fill="${c}"/><path d="M-24-14Q-30-4-24 6" stroke="#fff" stroke-opacity=".5" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    rose: (c = '#e11d48') => `<path d="M0 22V50" stroke="#15803d" stroke-width="4"/><ellipse cx="-14" cy="38" rx="11" ry="5" fill="#16a34a" transform="rotate(-30 -14 38)"/><ellipse cx="14" cy="32" rx="11" ry="5" fill="#16a34a" transform="rotate(30 14 32)"/><circle cy="-6" r="28" fill="${c}"/><circle cy="-6" r="28" fill="#000" opacity=".12"/><path d="M0-22C16-22 22-4 8 4C-8 12-20-4-10-14C-4-20 8-14 6-6" stroke="#fff" stroke-opacity=".7" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    tulip: (c = '#f472b6') => `<path d="M0 12V46" stroke="#15803d" stroke-width="4"/><path d="M0 46Q-24 34-20 14Q-4 24 0 46Z" fill="#16a34a"/><path d="M0 46Q24 34 20 14Q4 24 0 46Z" fill="#22a355"/><path d="M-17-28Q-20 8 0 12Q20 8 17-28L8-16L0-32L-8-16Z" fill="${c}"/><path d="M0-32Q-6-8 0 12" stroke="#fff" stroke-opacity=".4" stroke-width="2" fill="none"/>`,
+    bouquet: () => `<path d="M-28-4L28-4L9 46H-9Z" fill="#fbcfe8" stroke="#f472b6" stroke-width="2"/>` + [[-16, -16, '#f472b6'], [16, -16, '#fb923c'], [0, -28, '#e11d48'], [-2, -10, '#fde047']].map(q => `<g transform="translate(${q[0]} ${q[1]})">${FL(q[2], '#fef3c7', 8)}</g>`).join('') + `<path d="M-11 24L0 31L11 24V38L0 31L-11 38Z" fill="#ec4899"/>`,
+    gift: (c = '#ef4444') => `<rect x="-26" y="-4" width="52" height="38" rx="3" fill="${c}"/><rect x="-31" y="-18" width="62" height="16" rx="3" fill="${c}" stroke="#0003" stroke-width="1.5"/><rect x="-5" y="-18" width="10" height="52" fill="#fde68a"/><path d="M0-18C-20-38-32-14-4-18M0-18C20-38 32-14 4-18" fill="none" stroke="#fde68a" stroke-width="5" stroke-linecap="round"/>`,
+    drum: () => `<circle r="36" fill="#c99a3a" stroke="#7a5416" stroke-width="3"/><circle r="29" fill="none" stroke="#7a5416" stroke-width="3" stroke-dasharray="3 4"/><circle r="22" fill="none" stroke="#7a5416" stroke-width="2"/><polygon points="${sp(19, 10, 14)}" fill="#7a5416"/><circle r="8" fill="#e2b552" stroke="#7a5416" stroke-width="2"/>`,
+    incense: () => `<path d="M-26 4H26L21 28Q0 36-21 28Z" fill="#b45309"/><ellipse cy="4" rx="26" ry="5" fill="#fbbf24"/><path d="M-9 2V-26M0 2V-32M9 2V-26" stroke="#7c2d12" stroke-width="2"/><circle cx="-9" cy="-26" r="2.4" fill="#ef4444"/><circle cy="-32" r="2.4" fill="#ef4444"/><circle cx="9" cy="-26" r="2.4" fill="#ef4444"/><path d="M0-34Q-10-44 0-52Q10-60 0-68" stroke="#94a3b8" stroke-width="3" fill="none" stroke-linecap="round" opacity=".65"/>`,
+    flag: () => `<path d="M-32-42V48" stroke="#7c5a2c" stroke-width="4" stroke-linecap="round"/><path d="M-30-40Q-10-50 6-40T38-40V8Q22 18 6 8T-30 8Z" fill="#da251d"/><polygon points="${sp(15, 6)}" fill="#ffe000" transform="translate(4 -16)"/>`,
+    pavilion: () => `<rect x="-30" y="22" width="60" height="9" fill="#9ca3af"/><g fill="#b91c1c"><rect x="-24" y="4" width="5" height="18"/><rect x="19" y="4" width="5" height="18"/></g><path d="M-36 4Q0-8 36 4L30 0Q0-12-30 0Z" fill="#7c2d12"/><g fill="#b91c1c"><rect x="-14" y="-16" width="4" height="14"/><rect x="10" y="-16" width="4" height="14"/></g><rect x="-12" y="-16" width="24" height="12" fill="#fde68a" opacity=".6"/><path d="M-26-16Q0-30 26-16L19-22Q0-34-19-22Z" fill="#7c2d12"/><path d="M0-30V-38" stroke="#7c2d12" stroke-width="3"/>`,
+    lotus: (c = '#f9a8d4') => `<ellipse cy="26" rx="36" ry="7" fill="#22a355"/>` + [-66, -36, 36, 66, 0].map(a => `<path d="M0 0C-13-8-13-26 0-40C13-26 13-8 0 0Z" fill="${a ? c : '#fff'}" fill-opacity="${a ? 1 : .55}" stroke="#be185d" stroke-opacity=".35" stroke-width="1.5" transform="translate(0 22) rotate(${a})"/>`).join('') + `<circle cy="14" r="4" fill="#fde047"/>`,
+    dove: () => `<g fill="#fff" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"><path d="M-24 4Q-16-8-4-4Q10-24 32-32Q24-8 16 2Q32 2 40-2Q30 18 6 20Q-12 22-24 4Z"/><circle cx="-26" cy="-2" r="8"/></g><path d="M-34-2L-44 2L-34 4Z" fill="#f59e0b"/><circle cx="-28" cy="-4" r="1.7" fill="#111"/><path d="M-6 26Q8 34 22 26M0 30Q14 38 26 30" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    star: (c = '#ffe000') => `<polygon class="tw" points="${sp(38, 15)}" fill="${c}" stroke="#d97706" stroke-width="2" stroke-linejoin="round"/>`,
+    firework: (c = '#fde047') => `<path d="${rays(12, 10, 34)}" stroke="${c}" stroke-width="3.2" stroke-linecap="round" fill="none"/><path d="${rays(12, 10, 24)}" stroke="${c}" stroke-opacity=".6" stroke-width="2.4" stroke-linecap="round" fill="none" transform="rotate(15)"/>` + rot(12, a => `<circle cx="40" r="2.6" fill="${c}" transform="rotate(${a + 15})"/>`) + `<circle r="6" fill="${c}"/>`,
+    gear: (c = '#b91c1c') => `<g fill="${c}">` + rot(8, a => `<rect x="-6" y="-34" width="12" height="14" rx="2" transform="rotate(${a})"/>`) + `<circle r="26"/></g><circle r="10" fill="var(--bg,#fff)"/><circle r="26" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="3"/>`,
+    balloon: (c = '#fb923c') => `<path d="M0 22C-4 34 6 40 0 52" stroke="#64748b" stroke-width="1.8" fill="none"/><ellipse cy="-12" rx="22" ry="27" fill="${c}"/><path d="M-4 15L4 15L0 21Z" fill="${c}"/><ellipse cx="-8" cy="-22" rx="5" ry="9" fill="#fff" opacity=".35"/>`,
+    rainbow: () => ['#ef4444', '#f59e0b', '#fde047', '#22c55e', '#38bdf8', '#6366f1'].map((k, i) => `<path d="M${-38 + i * 4.5} 22A${38 - i * 4.5} ${38 - i * 4.5} 0 0 1 ${38 - i * 4.5} 22" stroke="${k}" stroke-width="5" fill="none"/>`).join('') + `<g fill="#fff" stroke="#bae6fd" stroke-width="1.5"><circle cx="-36" cy="26" r="9"/><circle cx="-24" cy="28" r="8"/><circle cx="36" cy="26" r="9"/><circle cx="24" cy="28" r="8"/></g>`,
+    kite: (c = '#38bdf8') => `<path d="M0-42L26-6L0 24L-26-6Z" fill="${c}"/><path d="M0-42V24M-26-6H26" stroke="#fff" stroke-opacity=".7" stroke-width="2"/><path d="M0 24Q-12 32 0 40T0 56" stroke="#475569" stroke-width="2" fill="none"/><path d="M-6 34L6 34L0 40Z M-6 48L6 48L0 54Z" fill="#f43f5e"/>`,
+    candle: () => `<rect x="-9" y="-4" width="18" height="44" rx="3" fill="#fef3c7" stroke="#e7d2ab" stroke-width="1.5"/><path d="M-16 40H16" stroke="#b45309" stroke-width="4" stroke-linecap="round"/><path class="fk" d="M0-6C-10-18-3-26 0-36C3-26 10-18 0-6Z" fill="#f59e0b"/><path class="fk" d="M0-7C-4-14-1-19 0-24C1-19 4-14 0-7Z" fill="#fde047"/>`,
+    moon: () => `<circle r="38" fill="#fde68a" opacity=".35"/><circle r="32" fill="#fde68a"/><circle cx="-10" cy="-8" r="7" fill="#f6d365"/><circle cx="12" cy="8" r="9" fill="#f6d365"/><circle cx="-6" cy="16" r="4" fill="#f6d365"/><circle cx="14" cy="-16" r="3.5" fill="#f6d365"/>` + star4(-38, -30, .8) + star4(40, 24, .7),
+    mooncake: () => `<circle r="30" fill="#c58a3a" stroke="#8a5a1a" stroke-width="3"/><circle r="25" fill="none" stroke="#8a5a1a" stroke-width="1.6" stroke-dasharray="3 3"/>` + rot(8, a => `<ellipse cy="-13" rx="4" ry="8" fill="#a96f2a" transform="rotate(${a})"/>`) + `<circle r="6" fill="#8a5a1a"/>`,
+    gradcap: () => `<path d="M-22 0V16Q0 28 22 16V0L0 8Z" fill="#334155"/><polygon points="0,-26 40,-8 0,10 -40,-8" fill="#1e293b"/><path d="M34-7V22" stroke="#fbbf24" stroke-width="2.5"/><circle cx="34" cy="26" r="4" fill="#fbbf24"/>`,
+    books: () => `<rect x="-34" y="10" width="68" height="16" rx="2" fill="#2563eb"/><rect x="-30" y="-6" width="62" height="16" rx="2" fill="#dc2626"/><rect x="-36" y="-22" width="66" height="16" rx="2" fill="#16a34a"/><path d="M-30 18H28M-26 2H28M-32-14H26" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>`,
+    book: () => `<path d="M0-20Q-20-30-40-22V22Q-20 14 0 24Z" fill="#fff" stroke="#94a3b8" stroke-width="2"/><path d="M0-20Q20-30 40-22V22Q20 14 0 24Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/><path d="M-32-12Q-18-16-6-10M-32-2Q-18-6-6 0M-32 8Q-18 4-6 10M6-10Q18-16 32-12M6 0Q18-6 32-2M6 10Q18 4 32 8" stroke="#94a3b8" stroke-width="1.8" fill="none"/>`,
+    sunflower: () => `<path d="M0 22V54" stroke="#15803d" stroke-width="4"/><ellipse cx="11" cy="42" rx="10" ry="4.5" fill="#22a355" transform="rotate(-30 11 42)"/><g transform="translate(0 -6)">` + rot(14, a => `<ellipse cy="-23" rx="6" ry="13" fill="#facc15" transform="rotate(${a})"/>`) + `<circle r="15" fill="#7c4a1d"/><circle cx="-5" cy="-4" r="2" fill="#a16207"/><circle cx="5" cy="3" r="2" fill="#a16207"/><circle cx="-3" cy="6" r="2" fill="#a16207"/></g>`,
+    pencil: () => `<g transform="rotate(35)"><rect x="-8" y="-38" width="16" height="58" fill="#facc15"/><rect x="-8" y="-38" width="16" height="9" rx="2" fill="#f472b6"/><rect x="-8" y="-30" width="16" height="4" fill="#94a3b8"/><path d="M-8 20H8L0 40Z" fill="#fcd9b0"/><path d="M-3 32H3L0 40Z" fill="#334155"/><path d="M0-26V20" stroke="#ca8a04" stroke-width="1.5"/></g>`,
+    pumpkin: () => `<ellipse cx="-14" rx="16" ry="26" fill="#ea580c"/><ellipse cx="14" rx="16" ry="26" fill="#ea580c"/><ellipse rx="16" ry="28" fill="#fb923c"/><path d="M0-26Q2-38 12-40" stroke="#4d7c0f" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M-17-4L-6-4L-11-15ZM6-4L17-4L11-15Z" fill="#3b1d00"/><path d="M-15 8L-8 14L-3 8L3 14L8 8L15 8Q8 24 0 24Q-8 24-15 8Z" fill="#3b1d00"/><path d="M-6 12L-3 8L0 14L3 8L6 12Z" fill="#fde047"/>`,
+    bat: () => `<path d="M0-4Q-7-18-14-10Q-30-22-44-4Q-35-2-31 9Q-23 2-16 11Q-8 6 0 16Q8 6 16 11Q23 2 31 9Q35-2 44-4Q30-22 14-10Q7-18 0-4Z" fill="#3b1d5a"/><path d="M-6-4L-7-14L-1-8ZM6-4L7-14L1-8Z" fill="#3b1d5a"/><circle cx="-3" cy="2" r="1.8" fill="#f87171"/><circle cx="3" cy="2" r="1.8" fill="#f87171"/>`,
+    ghost: () => `<path d="M-24 34V-6Q-24-34 0-34Q24-34 24-6V34L16 26L8 34L0 26L-8 34L-16 26Z" fill="#fff" stroke="#c4b5fd" stroke-width="2.4" stroke-linejoin="round"/><circle cx="-8" cy="-8" r="4.2" fill="#1f1235"/><circle cx="8" cy="-8" r="4.2" fill="#1f1235"/><ellipse cy="6" rx="5" ry="7" fill="#1f1235"/><circle cx="-14" cy="2" r="3.5" fill="#f9a8d4" opacity=".7"/><circle cx="14" cy="2" r="3.5" fill="#f9a8d4" opacity=".7"/>`,
+    candy: () => `<path d="M-18 0L-40-14V14ZM18 0L40-14V14Z" fill="#fb7185"/><ellipse rx="22" ry="15" fill="#f43f5e"/><path d="M-8-14L-14 14M4-15L-2 15M16-10L10 13" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/>`,
+    tree: () => `<rect x="-5" y="30" width="10" height="14" fill="#7c4a1d"/><path d="M0-32L18-10H8L24 8H12L30 32H-30L-12 8H-24L-8-10H-18Z" fill="#15803d" stroke="#0b5a28" stroke-width="2" stroke-linejoin="round"/><circle cx="-8" cy="14" r="3.6" fill="#ef4444"/><circle cx="10" cy="20" r="3.6" fill="#fde047"/><circle cx="2" cy="-2" r="3.2" fill="#ef4444"/><circle cx="-14" cy="26" r="3.2" fill="#38bdf8"/><circle cx="18" cy="6" r="3" fill="#fde047"/><polygon class="tw" points="${sp(9, 3.8)}" fill="#fde047" transform="translate(0 -36)"/>`,
+    bell: () => `<path d="M0-30Q-22-30-22 0V10L-30 22H30L22 10V0Q22-30 0-30Z" fill="#f5b301" stroke="#b45309" stroke-width="2.4"/><circle cy="28" r="5.5" fill="#b45309"/><path d="M0-30L-14-42V-28ZM0-30L14-42V-28Z" fill="#dc2626"/><circle cy="-30" r="3.5" fill="#b91c1c"/><path d="M-14-14Q-18 0-14 12" stroke="#fff" stroke-opacity=".5" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    candycane: () => `<path d="M-14 44V-12Q-14-34 6-34Q26-34 26-14" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round"/><path d="M-14 44V-12Q-14-34 6-34Q26-34 26-14" stroke="#dc2626" stroke-width="12" fill="none" stroke-dasharray="7 9" /><path d="M-14 44V-12Q-14-34 6-34Q26-34 26-14" stroke="#b91c1c" stroke-opacity=".35" stroke-width="12.5" fill="none" stroke-linecap="round" stroke-dasharray="0.1 400" />`,
+    snowflake: () => `<g stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round" fill="none">` + rot(6, a => `<path d="M0 0V-36M0-22L-9-31M0-22L9-31M0-11L-7-18M0-11L7-18" transform="rotate(${a})"/>`) + `</g><circle r="4" fill="#38bdf8"/>`,
+    champagne: () => [[-13, -12], [13, 12]].map(q => `<g transform="translate(${q[0] * 1.3} 0) rotate(${q[1]} 0 40)"><path d="M-10-34H10L8 4Q0 12-8 4Z" fill="#fde68a" stroke="#d4a017" stroke-width="2"/><path d="M0 8V32M-11 32H11" stroke="#d4a017" stroke-width="3" stroke-linecap="round"/><circle cx="-2" cy="-6" r="1.8" fill="#fff"/><circle cx="3" cy="-14" r="1.6" fill="#fff"/></g>`).join('') + star4(0, -40, 1.1, '#fbbf24'),
+    cross: () => `<circle r="32" fill="#fff" stroke="#10b981" stroke-width="3"/><path d="M-6-20H6V-6H20V6H6V20H-6V6H-20V-6H-6Z" fill="#10b981"/>`,
+    ecg: () => `<rect x="-38" y="-26" width="76" height="52" rx="8" fill="#fff" stroke="#10b981" stroke-width="2.6"/><path d="M-32 4H-18L-12-16L-4 20L2-8L6 4H32" fill="none" stroke="#10b981" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>`,
+    leaf: (c = '#22a355') => `<path d="M-26 28C-32-10 0-36 32-30C36 2 6 32-26 28Z" fill="${c}"/><path d="M-24 26L24-22" stroke="#fff" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/>`,
+    leaves: (c = '#22a355') => `<path d="M-30 44Q-4 14 30-38" stroke="#4d7c0f" stroke-width="3.5" fill="none" stroke-linecap="round"/>` + [[-4, 18, -70], [-18, 34, 20], [14, -2, -75], [20, -18, 10], [28, -36, -40]].map(q => `<path d="M0 0C-8-10-6-24 4-34C14-24 14-10 0 0Z" fill="${c}" transform="translate(${q[0]} ${q[1]}) rotate(${q[2]})"/>`).join(''),
+    bowl: () => `<path d="M-34-2H34Q32 26 0 30Q-32 26-34-2Z" fill="#fff" stroke="#60a5fa" stroke-width="2.6"/><path d="M-30 8H30" stroke="#60a5fa" stroke-width="2"/><g fill="#fffaf0" stroke="#e7d2ab" stroke-width="1.6"><circle cx="-17" cy="-8" r="11"/><circle cx="1" cy="-13" r="11"/><circle cx="18" cy="-8" r="11"/></g><path d="M-8-30Q-14-38-8-46M8-30Q2-38 8-46" stroke="#94a3b8" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".6"/>`,
+    peach: () => `<circle cx="-9" cy="4" r="25" fill="#fda4af"/><circle cx="9" cy="4" r="25" fill="#fb7185"/><path d="M0-20Q3 4 0 28" stroke="#e11d48" stroke-opacity=".45" stroke-width="2" fill="none"/><path d="M0-22Q6-36 20-32Q14-20 0-22Z" fill="#22a355"/><ellipse cx="-12" cy="-4" rx="4" ry="8" fill="#fff" opacity=".3"/>`,
+    flower: (c1 = '#fde68a', c2 = '#f59e0b') => `<g transform="scale(1.7)">${FL(c1, c2, 9)}</g><path d="M0 24V50" stroke="#15803d" stroke-width="4"/>`,
+    house: () => `<path d="M-32-2L0-32L32-2Z" fill="#c2410c" stroke="#9a3412" stroke-width="2" stroke-linejoin="round"/><rect x="-23" y="-2" width="46" height="34" fill="#fde68a" stroke="#c2410c" stroke-width="2"/><rect x="-6" y="12" width="12" height="20" rx="2" fill="#c2410c"/><rect x="-19" y="6" width="9" height="9" fill="#7dd3fc"/><rect x="10" y="6" width="9" height="9" fill="#7dd3fc"/><path d="M0-8C-8-14-4-20 0-17C4-20 8-14 0-8Z" fill="#e11d48"/>`,
+    newspaper: () => `<rect x="-28" y="-36" width="56" height="70" rx="3" fill="#fff" stroke="#64748b" stroke-width="2"/><rect x="-22" y="-30" width="44" height="12" fill="#1e40af"/><path d="M-22-8H22M-22 0H22M-22 8H2M-22 16H22M-22 24H12" stroke="#94a3b8" stroke-width="2.4"/><rect x="8" y="3" width="14" height="12" fill="#93c5fd"/>`,
+    camera: () => `<rect x="-34" y="-16" width="68" height="46" rx="7" fill="#334155"/><path d="M-14-16L-8-26H8L14-16Z" fill="#334155"/><circle cy="7" r="16" fill="#e2e8f0"/><circle cy="7" r="10" fill="#0ea5e9"/><circle cx="-4" cy="3" r="3" fill="#fff" opacity=".6"/><circle cx="24" cy="-7" r="3" fill="#fde047"/>`,
+    briefcase: (c = '#7c4a1d') => `<path d="M-12-14V-24H12V-14" stroke="${c}" stroke-width="5" fill="none"/><rect x="-34" y="-14" width="68" height="46" rx="6" fill="${c}"/><rect x="-34" y="5" width="68" height="4" fill="#000" opacity=".2"/><rect x="-5" y="1" width="10" height="12" rx="2" fill="#fbbf24"/>`,
+    chart: () => `<rect x="-36" y="-34" width="72" height="68" rx="6" fill="#fff" stroke="#94a3b8" stroke-width="2"/><rect x="-26" y="8" width="10" height="18" fill="#93c5fd"/><rect x="-10" y="-2" width="10" height="28" fill="#60a5fa"/><rect x="6" y="-12" width="10" height="38" fill="#2563eb"/><path d="M-28-6L-8-18L6-26L24-30M16-30H25V-21" stroke="#16a34a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+    coin: () => `<circle r="30" fill="#fbbf24" stroke="#b45309" stroke-width="3"/><circle r="23" fill="none" stroke="#b45309" stroke-width="2"/><polygon points="${sp(14, 6)}" fill="#b45309"/>`,
+    tag: (c = '#dc2626') => `<g transform="rotate(-25)"><path d="M-22-34H22V20L0 38L-22 20Z" fill="${c}"/><circle cy="-24" r="4.5" fill="var(--bg,#fff)"/><text y="10" text-anchor="middle" font-size="30" font-weight="900" fill="#fff" font-family="Arial,sans-serif">%</text></g>`,
+    bag: (c = '#111827') => `<path d="M-15-14V-24Q0-38 15-24V-14" stroke="${c}" stroke-width="4" fill="none"/><path d="M-27-14H27L31 34H-31Z" fill="${c}"/><polygon points="${sp(11, 4.6)}" fill="#ffd400" transform="translate(0 10)"/>`,
+    bolt: () => `<polygon class="tw" points="6,-38 -22,4 -2,4 -8,38 24,-8 4,-8" fill="#facc15" stroke="#b45309" stroke-width="2.4" stroke-linejoin="round"/>`,
+    medal: () => `<path d="M-20-40H-6L6-8L-6-8Z" fill="#dc2626"/><path d="M20-40H6L-6-8L6-8Z" fill="#b91c1c"/><circle cy="14" r="24" fill="#fbbf24" stroke="#b45309" stroke-width="3"/><polygon points="${sp(14, 5.8)}" fill="#dc2626" transform="translate(0 14)"/>`,
+    tie: (c = '#2563eb') => `<path d="M-10-34H10L6-26L11 22L0 38L-11 22L-6-26Z" fill="${c}"/><path d="M-10-34H10L6-26H-6Z" fill="#000" opacity=".25"/><path d="M-5-4L5 4M-6 8L6 16" stroke="#fff" stroke-opacity=".4" stroke-width="3"/>`,
+    mug: () => `<path d="M20-4H28Q40-4 40 8T28 20H20" stroke="#92400e" stroke-width="3.4" fill="none"/><path d="M-24-12H20V22Q20 34 8 34H-12Q-24 34-24 22Z" fill="#fff" stroke="#92400e" stroke-width="3"/><ellipse cx="-2" cy="-12" rx="22" ry="4" fill="#78350f"/><path d="M-10-20Q-16-30-10-38M4-20Q-2-30 4-38" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
+    egg: (c1 = '#a78bfa', c2 = '#fde68a') => `<path d="M0-36C20-36 28-6 28 10C28 28 16 36 0 36S-28 28-28 10C-28-6-20-36 0-36Z" fill="${c1}"/><path d="M-27 4L-18-4L-9 4L0-4L9 4L18-4L27 4" fill="none" stroke="${c2}" stroke-width="5"/><circle cx="-12" cy="20" r="3.5" fill="${c2}"/><circle cx="8" cy="22" r="3.5" fill="${c2}"/><circle cx="0" cy="-20" r="3.5" fill="${c2}"/>`,
+    chick: () => `<circle cy="2" r="26" fill="#fde047"/><circle cx="-9" cy="-4" r="3" fill="#222"/><circle cx="9" cy="-4" r="3" fill="#222"/><path d="M-5 4L0 12L5 4Z" fill="#f97316"/><path d="M0-24Q-6-36 4-34" stroke="#facc15" stroke-width="3" fill="none"/><path d="M-27 18L-19 12L-14 22L-6 14L0 24L6 14L14 22L19 12L27 18V36H-27Z" fill="#fff" stroke="#e5e7eb" stroke-width="1.5"/>`,
+    butterfly: (c1 = '#a78bfa', c2 = '#f9a8d4') => [1, -1].map(k => `<g transform="scale(${k} 1)"><path d="M2 0C-12-34-40-32-36-6C-34 8-12 8 2 0Z" fill="${c1}"/><path d="M2 2C-8 26-28 32-28 16C-28 6-12 2 2 2Z" fill="${c2}"/><circle cx="-22" cy="-12" r="5" fill="#fff" opacity=".5"/></g>`).join('') + `<ellipse ry="16" rx="3" fill="#3f2a1a"/><path d="M0-14Q-6-26-10-28M0-14Q6-26 10-28" stroke="#3f2a1a" stroke-width="1.8" fill="none"/>`,
+    sun: () => `<path d="${rays(12, 26, 40)}" stroke="#fbbf24" stroke-width="4.5" stroke-linecap="round"/><circle r="21" fill="#fbbf24"/><circle r="21" fill="#fde047" opacity=".5"/>`,
+    wave: () => `<path d="M-40-6Q-30-20-20-6T0-6T20-6T40-6V30H-40Z" fill="#7dd3fc"/><path d="M-40 8Q-30-6-20 8T0 8T20 8T40 8V30H-40Z" fill="#38bdf8"/><path d="M-40 20Q-30 8-20 20T0 20T20 20T40 20V34H-40Z" fill="#0ea5e9"/>`,
+    shell: () => `<path d="M0 32L-30-4Q-34-30 0-34Q34-30 30-4Z" fill="#fcd9b0" stroke="#e08f6b" stroke-width="2.6" stroke-linejoin="round"/><path d="M0 32V-32M0 32L-18-26M0 32L18-26M0 32L-28-12M0 32L28-12" stroke="#e08f6b" stroke-width="2"/><rect x="-10" y="30" width="20" height="8" rx="3" fill="#e08f6b"/>`,
+    starfish: () => `<polygon points="${sp(40, 17)}" fill="#fb923c" stroke="#fb923c" stroke-width="7" stroke-linejoin="round"/><g fill="#fde68a"><circle cy="-6" r="2.6"/><circle cx="-10" cy="4" r="2.2"/><circle cx="10" cy="4" r="2.2"/><circle cy="-20" r="2.2"/></g>`,
+    umbrella: (c = '#3b82f6') => `<path d="M-40 2Q-40-36 0-36Q40-36 40 2Q30-6 20 2Q10-6 0 2Q-10-6-20 2Q-30-6-40 2Z" fill="${c}"/><path d="M0-36V2M-20 2Q-24-18-8-34M20 2Q24-18 8-34" stroke="#000" stroke-opacity=".2" fill="none"/><path d="M0 2V34Q0 44 9 44T15 36" stroke="#475569" stroke-width="3.4" fill="none" stroke-linecap="round"/>`,
+    mapleleaf: (c = '#ea580c') => `<polygon points="0,-38 6,-24 16,-28 14,-12 30,-16 24,-2 36,4 20,16 24,24 6,22 6,40 -6,40 -6,22 -24,24 -20,16 -36,4 -24,-2 -30,-16 -14,-12 -16,-28 -6,-24" fill="${c}" stroke="#7c2d12" stroke-width="1.6" stroke-linejoin="round"/><path d="M0 38V-14M0 8L-16 0M0 8L16 0" stroke="#7c2d12" stroke-opacity=".5" stroke-width="2"/>`,
+    acorn: () => `<path d="M0 40C-18 34-22 14-22 0H22C22 14 18 34 0 40Z" fill="#b45309"/><path d="M-26 2Q-26-26 0-26Q26-26 26 2Z" fill="#78350f"/><path d="M-20-6L-14-14M-8-10L-2-20M6-12L12-18" stroke="#fff" stroke-opacity=".25" stroke-width="2"/><path d="M0-26V-36" stroke="#78350f" stroke-width="4" stroke-linecap="round"/>`,
+    cloud: () => `<g fill="#e2e8f0" stroke="#94a3b8" stroke-width="2.4"><path d="M-30 12Q-42 12-40 0Q-38-12-24-10Q-22-26-6-24Q4-34 18-24Q34-26 36-8Q48-8 44 6Q42 14 32 12Z"/></g>`,
+    drops: () => [[-18, -10, 1], [4, 12, 1.2], [20, -16, .9]].map(q => `<path d="M0-16C-10-2-12 6-6 12C-2 16 2 16 6 12C12 6 10-2 0-16Z" fill="#60a5fa" stroke="#2563eb" stroke-width="1.5" transform="translate(${q[0]} ${q[1]}) scale(${q[2]})"/>`).join('')
+  };
+  const ANIM = { lantern: 'sw', starlantern: 'sw', kite: 'sw', bell: 'sw', balloon: 'fl', bat: 'fl', butterfly: 'fl', ghost: 'fl', cloud: 'fl' };
+  const motif = (name, args, x, y, s, i) => { const f = MOT[name]; return f ? `<g transform="translate(${x} ${y}) scale(${s})"><g class="${ANIM[name] || 'fl'}" style="animation-delay:${-i * 1.4}s">${f(...args)}</g></g>` : ''; };
+  const wrap = (inner, pal, cls = '') => `<svg class="scn ${cls}" viewBox="0 0 200 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><circle cx="100" cy="170" r="94" fill="${pal[0]}" opacity=".13"/><circle cx="100" cy="170" r="94" fill="none" stroke="${pal[0]}" stroke-width="1.6" stroke-dasharray="2 7" stroke-linecap="round" opacity=".45"/>${inner}</svg>`;
+  function sceneSvg(items, pal, isRight, cls) {
+    const n = items.length, ys = n === 2 ? [92, 250] : [58, 172, 288], ss = n === 2 ? [1.25, 1.3] : [1, 1.25, 1.05], xs = isRight ? [108, 92, 104] : [92, 108, 96];
+    return wrap(items.map((it, i) => motif(it[0], it.slice(1), xs[i], ys[i], ss[i], i)).join(''), pal, cls);
+  }
+
+  /* ----- Cảnh riêng: Ông Công Ông Táo ----- */
+  const CARP = `<path d="M-58 0C-72-14-84-26-94-36C-90-14-90 14-94 36C-84 26-72 14-58 0Z" fill="#f97316"/><path d="M-8-26C2-44 26-46 40-30C28-30 14-28-8-26Z" fill="#f97316"/><path d="M72 2C66-22 30-32-8-26C-34-22-52-8-62 0C-52 8-34 22-8 26C30 32 66 24 72 2Z" fill="#ef4430"/><path d="M66 10C30 30-10 28-42 10C-10 18 30 16 66 10Z" fill="#fcd34d"/><path d="M-24-14q9 10 0 22M-6-18q9 12 0 28M12-18q9 12 0 28M30-14q9 10 0 22" stroke="#fff" stroke-opacity=".45" stroke-width="2.4" fill="none"/><path d="M42-18Q34 0 42 18" stroke="#9a1c10" stroke-width="2.4" fill="none"/><circle cx="55" cy="-6" r="5.5" fill="#fff"/><circle cx="56.5" cy="-6" r="3" fill="#111"/><path d="M71 0Q84-2 92 6M70 6Q82 12 88 22" stroke="#fbbf24" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M10 22Q20 40 34 38Q30 28 22 22Z" fill="#f97316"/>`;
+  const MAN = (rb, beard) => `<path d="M-13-38Q-27-30-21-20L-12-30Z M13-38Q27-30 21-20L12-30Z" fill="${rb}" stroke="#fbbf24" stroke-width="1.5"/><path d="M-17 0L-13-42H13L17 0Z" fill="${rb}" stroke="#fbbf24" stroke-width="2"/><rect x="-14" y="-27" width="28" height="5" fill="#fbbf24"/><circle cy="-24.5" r="3" fill="#fde68a"/><rect x="-5" y="-47" width="10" height="6" rx="2" fill="#fcd9b0"/><circle cy="-55" r="10" fill="#fcd9b0"/><path d="M-8-51Q0-34 8-51Q4-45 0-45Q-4-45-8-51Z" fill="${beard}"/><path d="M-5-58h3M2-58h3" stroke="#222" stroke-width="1.7" stroke-linecap="round"/><rect x="-9" y="-73" width="18" height="12" rx="3" fill="#1f1f1f"/><rect x="-28" y="-69" width="20" height="4" rx="2" fill="#1f1f1f"/><rect x="8" y="-69" width="20" height="4" rx="2" fill="#1f1f1f"/><circle cy="-67" r="2.4" fill="#fbbf24"/>`;
+  const LADY = `<path d="M-13-38Q-27-30-21-20L-12-30Z M13-38Q27-30 21-20L12-30Z" fill="#f59e0b" stroke="#fbbf24" stroke-width="1.5"/><path d="M-16 0L-12-42H12L16 0Z" fill="#f59e0b" stroke="#fbbf24" stroke-width="2"/><path d="M-5-42L0-24L5-42Z" fill="#fde68a"/><rect x="-14" y="-24" width="28" height="4" fill="#fbbf24"/><rect x="-5" y="-47" width="10" height="6" rx="2" fill="#fcd9b0"/><circle cy="-55" r="10" fill="#fcd9b0"/><path d="M-10-57Q-10-68 0-68Q10-68 10-57Q0-64-10-57Z" fill="#2b1a10"/><ellipse cy="-65" rx="14" ry="5.5" fill="#3b2314"/><path d="M12-66L20-72L17-63Z" fill="#3b2314"/><path d="M-5-57h3M2-57h3" stroke="#222" stroke-width="1.7" stroke-linecap="round"/><circle cx="-7" cy="-51" r="2.4" fill="#f9a8d4" opacity=".8"/><circle cx="7" cy="-51" r="2.4" fill="#f9a8d4" opacity=".8"/>`;
+  const TAO_L = `<g opacity=".9"><path d="${rays(16, 30, 44)}" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" transform="translate(100 56)"/><circle cx="100" cy="56" r="22" fill="#fbbf24"/><circle cx="100" cy="56" r="22" fill="#fde047" opacity=".6"/></g>${CLOUD(52, 62, .8)}${CLOUD(158, 42, .6)}${CLOUD(100, 92, .65)}${star4(30, 118, 1)}${star4(176, 120, .9)}${star4(150, 78, .7)}`
+    + `<g class="fl"><g transform="translate(106 240) rotate(-14) scale(.9)">${CARP}</g><g transform="translate(150 206) scale(.8)">${MAN('#b91c1c', '#1f1f1f')}</g><g transform="translate(57 232) scale(.8)">${MAN('#dc2626', '#f3f4f6')}</g><g transform="translate(103 220) scale(.84)">${LADY}</g></g>`
+    + `${CLOUD(56, 306, .95)}${CLOUD(140, 312, .8)}`;
+  const HAT = `<rect x="-10" y="-22" width="20" height="16" rx="4" fill="#dc2626" stroke="#fbbf24" stroke-width="2"/><rect x="-34" y="-17" width="24" height="5" rx="2.5" fill="#fbbf24" stroke="#b45309"/><rect x="10" y="-17" width="24" height="5" rx="2.5" fill="#fbbf24" stroke="#b45309"/><circle cy="-14" r="3" fill="#fde047"/>`;
+  const ROBE = `<path d="M-34-2L-18-4L0 4L18-4L34-2L40 20L26 24L24 44H-24L-26 24L-40 20Z" fill="#dc2626" stroke="#fbbf24" stroke-width="2"/><path d="M-18-4L0 22L18-4" fill="none" stroke="#fbbf24" stroke-width="3"/><rect x="-24" y="32" width="48" height="5" fill="#fbbf24"/><circle cy="14" r="5" fill="#fbbf24"/>`;
+  const STOVE = `<path d="M-14-64Q-22-74-14-84M0-66Q-8-78 0-88M14-64Q6-74 14-84" stroke="#cbd5e1" stroke-width="3.2" fill="none" stroke-linecap="round" opacity=".85"/><path d="M-30-56H30V-22Q30-8 14-8H-14Q-30-8-30-22Z" fill="#292524"/><rect x="-35" y="-62" width="70" height="9" rx="4.5" fill="#44403c"/><circle cx="-36" cy="-40" r="4" fill="#44403c"/><circle cx="36" cy="-40" r="4" fill="#44403c"/><g fill="#a16207" stroke="#713f12" stroke-width="1.5"><path d="M-34-8H-16L-14 8H-36Z"/><path d="M-9-8H9L11 8H-11Z"/><path d="M16-8H34L36 8H14Z"/></g><path d="M-46 8H46L52 62H-52Z" fill="#9a5b2e" stroke="#713f12" stroke-width="2"/><path d="M-49 28H49M-50 46H50M-20 8V28M20 8V28M0 28V46M-30 46V62M30 46V62" stroke="#713f12" stroke-opacity=".5"/><path d="M-24 62V44Q-24 30 0 30Q24 30 24 44V62Z" fill="#1c1917"/><path class="fk" d="M0 62C-16 58-18 44-6 34C-6 44 0 44 2 38C10 46 16 56 0 62Z" fill="#f97316"/><path class="fk" d="M0 62C-8 60-8 52-2 46C0 52 4 52 6 56C8 60 4 62 0 62Z" fill="#fde047"/>`;
+  const TAO_R = `<g transform="translate(100 56)"><g class="fl">${HAT}<g transform="translate(0 6)">${ROBE}</g></g></g>`
+    + `<g transform="translate(100 186) scale(1.05)">${STOVE}</g>${star4(28, 150, .9)}${star4(176, 190, .8)}${star4(168, 108, .7)}`
+    + `<g transform="translate(100 302)"><g class="fl">${MOT.incense()}</g></g>`;
+
+  /* ----- Dữ liệu từng chủ đề ----- */
+  const SD = (h, f, p, br, L, R) => ({ h, f, p, br, L, R });
+  const SIDE = {
+    tet: SD(['🏮', '🧧'], '🌼', ['#ffd54a', '#ff9eb5'], 1, [['blossom', '#ff9eb5', '#ffd54a'], ['banhchung'], ['kumquat']], [['blossom', '#ffd54a', '#f59e0b'], ['envelope'], ['ingot']]),
+    valentine: SD(['💖', '🎀'], '🌹', ['#ff5c7c', '#ffc2d1'], 1, [['heart', '#e11d48'], ['rose', '#e11d48'], ['gift', '#fb4b6a']], [['rose', '#fb7185'], ['heart', '#ff8fa3'], ['balloon', '#e11d48']]),
+    women83: SD(['🌷', '🎀'], '🌸', ['#f472b6', '#fbcfe8'], 1, [['tulip', '#f472b6'], ['bouquet'], ['heart', '#ec4899']], [['rose', '#ec4899'], ['gift', '#f472b6'], ['tulip', '#fb7185']]),
+    hung: SD(['🏮', '🍃'], '🌼', ['#fbbf24', '#f59e0b'], 1, [['drum'], ['banhchung'], ['incense']], [['flag'], ['lotus', '#f9a8d4'], ['pavilion']]),
+    liberation: SD(['⭐', '🚩'], '🕊️', ['#ef4444', '#fde047'], 0, [['flag'], ['dove'], ['star']], [['firework', '#ef4444'], ['flag'], ['rose', '#ef4444']]),
+    labor: SD(['⭐', '🚩'], '🌹', ['#ef4444', '#fde047'], 0, [['gear', '#b91c1c'], ['flag'], ['star']], [['star'], ['rose', '#ef4444'], ['gear', '#d97706']]),
+    children: SD(['🎈', '🎈'], '🌈', ['#fb923c', '#38bdf8'], 0, [['balloon', '#fb923c'], ['rainbow'], ['kite', '#38bdf8']], [['balloon', '#38bdf8'], ['gift', '#facc15'], ['balloon', '#f472b6']]),
+    vulan: SD(['🏮', '🪷'], '🤍', ['#f9a8d4', '#ffffff'], 1, [['lotus', '#f9a8d4'], ['candle'], ['heart', '#f9a8d4']], [['rose', '#f472b6'], ['lotus', '#ffffff'], ['incense']]),
+    national: SD(['⭐', '🚩'], '⭐', ['#ef4444', '#fde047'], 0, [['flag'], ['star'], ['dove']], [['firework', '#fbbf24'], ['flag'], ['star']]),
+    midautumn: SD(['🏮', '🌕'], '🥮', ['#fbbf24', '#fde68a'], 0, [['moon'], ['starlantern', '#dc2626'], ['mooncake']], [['starlantern', '#f59e0b'], ['mooncake'], ['lantern', '#dc2626']]),
+    women2010: SD(['🌹', '💐'], '🌸', ['#e879f9', '#fbcfe8'], 1, [['rose', '#d946ef'], ['bouquet'], ['gift', '#c026d3']], [['tulip', '#e879f9'], ['heart', '#f472b6'], ['rose', '#fb7185']]),
+    teacher: SD(['📚', '🌻'], '🌸', ['#facc15', '#93c5fd'], 0, [['gradcap'], ['books'], ['sunflower']], [['pencil'], ['sunflower'], ['book']]),
+    halloween: SD(['🎃', '🦇'], '👻', ['#fb923c', '#a78bfa'], 0, [['pumpkin'], ['bat'], ['ghost']], [['bat'], ['candy'], ['pumpkin']]),
+    christmas: SD(['🎄', '⭐'], '🎁', ['#ef4444', '#16a34a'], 0, [['tree'], ['gift', '#ef4444'], ['bell']], [['snowflake'], ['candycane'], ['gift', '#16a34a']]),
+    newyear: SD(['🎆', '🎉'], '✨', ['#fde047', '#93c5fd'], 0, [['firework', '#f59e0b'], ['champagne'], ['balloon', '#3b82f6']], [['firework', '#ec4899'], ['star'], ['firework', '#38bdf8']]),
+    party: SD(['⭐', '🚩'], '🌹', ['#ef4444', '#fde047'], 0, [['flag'], ['star'], ['rose', '#ef4444']], [['star'], ['flag'], ['blossom', '#ffd54a', '#f59e0b']]),
+    doctor: SD(['💚', '✚'], '🌿', ['#34d399', '#10b981'], 0, [['cross'], ['ecg'], ['leaf']], [['heart', '#10b981'], ['cross'], ['leaves']]),
+    hanthuc: SD(['🍡', '🌸'], '🍃', ['#fbbf24', '#fde68a'], 1, [['bowl'], ['blossom', '#f9a8d4', '#fff'], ['leaves']], [['bowl'], ['leaves', '#65a30d'], ['flower', '#fde68a', '#f59e0b']]),
+    nguyentieu: SD(['🏮', '🌕'], '🧧', ['#fbbf24', '#fda4af'], 1, [['moon'], ['lantern', '#dc2626'], ['envelope']], [['lantern', '#f59e0b'], ['starlantern', '#e11d48'], ['ingot']]),
+    vesak: SD(['🪷', '🕯️'], '🌼', ['#f9a8d4', '#fde68a'], 0, [['lotus', '#f9a8d4'], ['candle'], ['leaf', '#65a30d']], [['lantern', '#f9a8d4'], ['lotus', '#fde68a'], ['candle']]),
+    doanngo: SD(['🍑', '🌿'], '🍃', ['#fdba74', '#86efac'], 0, [['peach'], ['leaves'], ['bowl']], [['leaves', '#65a30d'], ['peach'], ['flower', '#86efac', '#16a34a']]),
+    family: SD(['🏠', '💛'], '🌻', ['#fb923c', '#fde047'], 0, [['house'], ['heart', '#f59e0b'], ['sunflower']], [['sunflower'], ['balloon', '#fbbf24'], ['heart', '#fb923c']]),
+    press: SD(['📰', '✒️'], '⭐', ['#60a5fa', '#fde047'], 0, [['newspaper'], ['pencil'], ['star']], [['camera'], ['newspaper'], ['pencil']]),
+    martyr: SD(['🕯️', '🌼'], '⭐', ['#fde047', '#ffffff'], 0, [['candle'], ['star'], ['flower', '#fde047', '#d97706']], [['incense'], ['flower', '#ffffff', '#fbbf24'], ['candle']]),
+    august: SD(['🚩', '⭐'], '🚩', ['#ef4444', '#fde047'], 0, [['flag'], ['star'], ['dove']], [['firework', '#ef4444'], ['flag'], ['star']]),
+    capital: SD(['⭐', '🌸'], '🕊️', ['#f9a8d4', '#fde047'], 1, [['pavilion'], ['lotus', '#f9a8d4'], ['dove']], [['blossom', '#f9a8d4', '#fff'], ['flag'], ['star']]),
+    business: SD(['💼', '📈'], '⭐', ['#60a5fa', '#fde047'], 0, [['briefcase'], ['chart'], ['coin']], [['coin'], ['star'], ['briefcase', '#0f3d6b']]),
+    blackfriday: SD(['🏷️', '💥'], '⭐', ['#fde047', '#111827'], 0, [['tag'], ['bag'], ['bolt']], [['bolt'], ['tag', '#111827'], ['bag', '#dc2626']]),
+    army: SD(['⭐', '🌿'], '🌿', ['#a3e635', '#fde047'], 0, [['medal'], ['star'], ['flag']], [['star'], ['leaves', '#4d7c0f'], ['medal']]),
+    taoquan: Object.assign(SD(['🏮', '🐟'], '🧧', ['#fbbf24', '#ef4444'], 0, null, null), { tao: 1 }),
+    mothers: SD(['🌹', '💐'], '💗', ['#f472b6', '#fbcfe8'], 1, [['rose', '#f472b6'], ['bouquet'], ['heart', '#c9246f']], [['heart', '#f472b6'], ['gift', '#f9a8d4'], ['rose', '#ec4899']]),
+    fathers: SD(['👔', '💙'], '⭐', ['#60a5fa', '#ffffff'], 0, [['tie'], ['mug'], ['star', '#fde047']], [['heart', '#3a66cf'], ['tie', '#1e40af'], ['mug']]),
+    easter: SD(['🐣', '🥚'], '🌷', ['#c4b5fd', '#fde68a'], 0, [['egg'], ['chick'], ['tulip', '#c084fc']], [['egg', '#f9a8d4', '#fff'], ['butterfly'], ['egg', '#7dd3fc', '#fde68a']]),
+    spring: SD(['🌸', '🦋'], '🌼', ['#f9a8d4', '#fde047'], 1, [['blossom', '#f9a8d4', '#fde047'], ['butterfly'], ['flower', '#f9a8d4', '#fde047']], [['blossom', '#fde047', '#f59e0b'], ['sun'], ['butterfly', '#38bdf8', '#fde047']]),
+    summer: SD(['☀️', '🐚'], '🌊', ['#fde047', '#7dd3fc'], 0, [['sun'], ['wave'], ['shell']], [['umbrella', '#f97316'], ['starfish'], ['wave']]),
+    autumn: SD(['🍂', '🍁'], '🌰', ['#fb923c', '#fbbf24'], 0, [['mapleleaf', '#ea580c'], ['acorn'], ['mapleleaf', '#f59e0b']], [['mapleleaf', '#b45309'], ['acorn'], ['mapleleaf', '#dc2626']]),
+    rainy: SD(['☔', '💧'], '💧', ['#94a3b8', '#bae6fd'], 0, [['umbrella', '#3b82f6'], ['cloud'], ['drops']], [['mug'], ['umbrella', '#6366f1'], ['drops']])
+  };
+
+  function branchSvgLocal(c1, c2) { return branchSvg(c1, c2); }
+  function sideHtml(t, isRight) {
+    const d = SIDE[t.id]; if (!d) return '';
+    const pal = d.p || [t.bar[1], t.v.accent], pos = isRight ? 'right' : 'left', hg = (x, len, e, delay) => `<div class="hg" style="${pos}:calc(${x}% - 17px);--len:${len}px;animation-delay:${delay}s"><i></i><b>${e}</b></div>`;
+    const A = isRight ? d.R : d.L, B = isRight ? d.L : d.R;
+    const scene = d.tao ? wrap(isRight ? TAO_R : TAO_L, pal) + wrap(isRight ? TAO_L : TAO_R, pal, 's2') : sceneSvg(A, pal, isRight) + sceneSvg(B, pal, isRight, 's2');
+    return (d.br ? branchSvgLocal(pal[0], pal[1]) : '') + hg(68, 70, d.h[0], 0) + hg(84, 118, d.h[1], -2)
+      + `<div class="scw" style="top:${d.br ? 196 : 160}px">${scene}</div><div class="bt">${d.f}</div>`;
+  }
+  return { SIDE, sideHtml };
+})();
 function branchSvg(c1, c2) {
   const pts = [[15, 8], [30, 13], [58, 26], [95, 14], [70, 45], [100, 40], [120, 60], [135, 70], [85, 72], [55, 100], [40, 135], [110, 110], [135, 150], [128, 172]];
   const fl = pts.map((q, i) => `<circle cx="${q[0]}" cy="${q[1]}" r="${i % 3 === 0 ? 9 : 7}" fill="${i % 2 ? c2 : c1}"/><circle cx="${q[0]}" cy="${q[1]}" r="2.2" fill="#c2410c"/>`).join('');
   return `<svg class="br" viewBox="0 0 150 190" aria-hidden="true"><g fill="none" stroke="#6b3f1d" stroke-linecap="round"><path d="M0 6C30 10 60 30 85 70S120 140 140 185" stroke-width="5"/><path d="M45 22C55 10 75 8 95 14M70 52C95 48 115 55 135 70M85 70C70 95 55 105 40 135M110 110C125 120 132 135 135 150" stroke-width="3"/></g>`
     + `<g fill="#4d7c0f" opacity=".85"><ellipse cx="45" cy="38" rx="9" ry="4" transform="rotate(35 45 38)"/><ellipse cx="108" cy="80" rx="9" ry="4" transform="rotate(-30 108 80)"/><ellipse cx="62" cy="118" rx="9" ry="4" transform="rotate(50 62 118)"/></g>${fl}</svg>`;
-}
-function sideHtml(t, isRight) {
-  const d = SIDE[t.id]; if (!d) return '';
-  const pal = d[5] || [t.bar[1], t.v.accent], words = d[isRight ? 4 : 3].split(/[|\s]+/).filter(Boolean);
-  const pos = isRight ? 'right' : 'left', hg = (x, len, e, delay) => `<div class="hg" style="${pos}:calc(${x}% - 17px);--len:${len}px;animation-delay:${delay}s"><i></i><b>${e}</b></div>`;
-  return branchSvg(pal[0], pal[1]) + hg(68, 70, d[0], 0) + hg(84, 118, d[1], -2)
-    + `<div class="sc" style="--scBg:linear-gradient(${t.bar[0]},${t.bar[1]});--scInk:${t.barInk}">${words.map(w => `<div>${esc(w)}</div>`).join('')}<span class="tas"></span></div>`
-    + `<div class="bt">${d[2]}</div>`;
 }
 function applySide(t) {
   const L = $('sideL'), R = $('sideR'); if (!L || !R) return;
