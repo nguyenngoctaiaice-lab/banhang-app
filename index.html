@@ -2357,7 +2357,7 @@ function payTag(x) {
   if (x.payState === 'KHACH_BAO') return '<span class="pst pst-warn">⏳ CK: khách báo đã chuyển (chưa xác nhận)</span>';
   return '<span class="pst pst-bad">❌ CK: CHƯA chuyển khoản</span>';
 }
-let guestEmptyAfter = null, guestView = 'pend', guestData = null, guestBusy = false, guestAgain = false, guestSeen = -1, guestOn = true, ratingNew = 0;
+let guestLimit = 300, guestEmptyAfter = null, guestView = 'pend', guestData = null, guestBusy = false, guestAgain = false, guestSeen = -1, guestOn = true, ratingNew = 0;
 let guestReplyOpen = {};   // { mã đơn: nội dung đang soạn } - giữ nguyên khi danh sách tự vẽ lại
 const RS_KEY = 'bh_ratingSeen';
 const ratingSeen = () => { try { const v = JSON.parse(store.get(RS_KEY) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
@@ -2622,10 +2622,14 @@ function renderGuest() {
   if (!r) { $('guestList').innerHTML = '<div class="empty">Đang tải…</div>'; return; }
   let list;
   if (guestView === 'pend') list = r.orders.filter(o => o.status === 'CHO').reverse();            // cũ nhất lên đầu
-  else if (guestView === 'done') list = r.orders.filter(o => o.status === 'DA_DUYET').slice(0, 100);
-  else { const f = HIST_FILTER[$('guestHistFilter').value] || HIST_FILTER.all; list = r.orders.filter(f); $('guestHistInfo').textContent = `Hiển thị ${list.length} đơn (tối đa ${r.orders.length} đơn gần nhất, mọi trạng thái).`; }
+  else if (guestView === 'done') list = r.orders.filter(o => o.status === 'DA_DUYET');
+  else { const f = HIST_FILTER[$('guestHistFilter').value] || HIST_FILTER.all; list = r.orders.filter(f); $('guestHistInfo').textContent = `Hiển thị ${list.length} / ${r.orders.length} đơn đã tải${r.more ? ' (còn đơn cũ hơn chưa tải)' : ' (đã tải hết)'}.`; }
   $('guestList').innerHTML = list.length ? list.map(o => guestCard(o, admin)).join('')
     : `<div class="empty">${guestView === 'done' ? 'Bạn chưa có đơn hàng nào đã xử lý cả.' : guestView === 'hist' ? 'Không có đơn nào khớp bộ lọc.' : 'Bạn chưa có đơn hàng để phê duyệt.'}</div>`;
+  if (r.more && guestView !== 'pend') {
+    $('guestList').insertAdjacentHTML('beforeend', '<div style="margin-top:8px"><button class="btn ghost sm" id="btnGuestMore" style="width:100%">Tải thêm đơn cũ</button></div>');
+    $('btnGuestMore').onclick = e => run(e.target, async () => { guestLimit = Math.min(guestLimit * 3, 5000); await loadGuest(); });
+  }
   if (guestEmptyAfter) {   // vừa bấm nút chuyển danh sách: nếu trống thì đợi tiếng nút phát hết rồi đọc dòng thông báo
     const wait = guestEmptyAfter; guestEmptyAfter = null;
     if (!list.length && guestView !== 'hist') { const nm = guestView === 'done' ? 'emptyDone' : 'emptyPend'; wait.then(ok => { if (ok) { try { sndPlay(nm); } catch (e) {} } }); }
@@ -2638,7 +2642,7 @@ async function loadGuest(silent) {
   if (guestBusy) { guestAgain = true; return; }
   guestBusy = true;
   try {
-    const r = await api('listGuestAll'); guestOn = r.enabled; guestData = r;
+    const r = await api('listGuestAll', guestLimit); guestOn = r.enabled; guestData = r;
     const pend = r.orders.filter(o => o.status === 'CHO').length;
     pendingTables = new Set(r.orders.filter(o => o.status === 'CHO').map(o => o.table)); fillTables();
     $('guestTitle').textContent = `ĐƠN HÀNG CỦA KHÁCH ĐẶT MÓN ONLINE (${pend} CHỜ DUYỆT)`;
