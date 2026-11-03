@@ -25,7 +25,7 @@ import me.leolin.shortcutbadger.ShortcutBadger;
  * (cộng dồn mỗi đơn mới, xóa khi mở app). Khi app đang mở: chỉ chuyển cho trang web xử lý như cũ.
  */
 public class BadgeMessagingService extends MessagingService {
-    static final String CHANNEL = "don_moi";
+    static final String CHANNEL = "don_moi_v2";   // đổi tên kênh vì âm thanh của kênh đã tạo thì không sửa được
     static final String CHANNEL_CMT = "binh_luan_v2";   // đổi tên kênh vì âm thanh của kênh đã tạo thì không sửa được
     static final String PREFS = "badge_prefs";
 
@@ -53,11 +53,11 @@ public class BadgeMessagingService extends MessagingService {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(chId) == null) {
                 NotificationChannel ch = new NotificationChannel(chId, comment ? "Khách bình luận" : "Đơn khách đặt", NotificationManager.IMPORTANCE_HIGH);
-                if (comment) {   // âm thanh riêng của bình luận (res/raw/binh_luan.mp3), phát cả khi tắt màn hình
+                {   // âm thanh riêng: bình luận = res/raw/binh_luan.mp3, đơn mới = res/raw/don_moi.mp3 (phát cả khi tắt màn hình)
                     AudioAttributes aa = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-                    ch.setSound(cmtSound(), aa);
+                    ch.setSound(sound(comment), aa);
                 }
                 ch.setShowBadge(true);
                 ch.enableVibration(true);
@@ -75,10 +75,10 @@ public class BadgeMessagingService extends MessagingService {
                     .setContentText(body)
                     .setAutoCancel(true)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setDefaults(comment ? (NotificationCompat.DEFAULT_VIBRATE | NotificationCompat.DEFAULT_LIGHTS) : NotificationCompat.DEFAULT_ALL)
+                    .setDefaults(NotificationCompat.DEFAULT_VIBRATE | NotificationCompat.DEFAULT_LIGHTS)
                     .setNumber(n)
                     .setContentIntent(pi);
-            if (comment) b.setSound(cmtSound());   // máy Android 7 trở xuống không có kênh
+            b.setSound(sound(comment));   // máy Android 7 trở xuống không có kênh
             Notification nt = b.build();
 
             // Xiaomi chỉ nhận số huy hiệu qua chính thông báo
@@ -90,7 +90,7 @@ public class BadgeMessagingService extends MessagingService {
         } catch (Exception ignored) { }
     }
 
-    private Uri cmtSound() {
-        return Uri.parse("android.resource://" + getPackageName() + "/raw/binh_luan");
+    private Uri sound(boolean comment) {
+        return Uri.parse("android.resource://" + getPackageName() + "/raw/" + (comment ? "binh_luan" : "don_moi"));
     }
 }
