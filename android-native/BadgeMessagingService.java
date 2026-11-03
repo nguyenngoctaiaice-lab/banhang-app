@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
@@ -24,6 +26,7 @@ import me.leolin.shortcutbadger.ShortcutBadger;
  */
 public class BadgeMessagingService extends MessagingService {
     static final String CHANNEL = "don_moi";
+    static final String CHANNEL_CMT = "binh_luan_v2";   // đổi tên kênh vì âm thanh của kênh đã tạo thì không sửa được
     static final String PREFS = "badge_prefs";
 
     @Override
@@ -40,14 +43,22 @@ public class BadgeMessagingService extends MessagingService {
             }
             if (title == null || title.isEmpty()) title = "Quản lý bán hàng";
             if (body == null) body = "";
+            boolean comment = "comment".equals(data.get("type"));   // khách bình luận / đánh giá
+            String chId = comment ? CHANNEL_CMT : CHANNEL;
 
             SharedPreferences sp = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             int n = sp.getInt("n", 0) + 1;
             sp.edit().putInt("n", n).apply();
 
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
-                NotificationChannel ch = new NotificationChannel(CHANNEL, "Đơn khách đặt", NotificationManager.IMPORTANCE_HIGH);
+            if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(chId) == null) {
+                NotificationChannel ch = new NotificationChannel(chId, comment ? "Khách bình luận" : "Đơn khách đặt", NotificationManager.IMPORTANCE_HIGH);
+                if (comment) {   // âm thanh riêng của bình luận (res/raw/binh_luan.mp3), phát cả khi tắt màn hình
+                    AudioAttributes aa = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+                    ch.setSound(cmtSound(), aa);
+                }
                 ch.setShowBadge(true);
                 ch.enableVibration(true);
                 nm.createNotificationChannel(ch);
@@ -58,15 +69,16 @@ public class BadgeMessagingService extends MessagingService {
             PendingIntent pi = PendingIntent.getActivity(this, 0, open,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL)
+            NotificationCompat.Builder b = new NotificationCompat.Builder(this, chId)
                     .setSmallIcon(getApplicationInfo().icon)
                     .setContentTitle(title)
                     .setContentText(body)
                     .setAutoCancel(true)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setDefaults(comment ? (NotificationCompat.DEFAULT_VIBRATE | NotificationCompat.DEFAULT_LIGHTS) : NotificationCompat.DEFAULT_ALL)
                     .setNumber(n)
                     .setContentIntent(pi);
+            if (comment) b.setSound(cmtSound());   // máy Android 7 trở xuống không có kênh
             Notification nt = b.build();
 
             // Xiaomi chỉ nhận số huy hiệu qua chính thông báo
@@ -76,5 +88,9 @@ public class BadgeMessagingService extends MessagingService {
             nm.notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), nt);
             ShortcutBadger.applyCount(getApplicationContext(), n);
         } catch (Exception ignored) { }
+    }
+
+    private Uri cmtSound() {
+        return Uri.parse("android.resource://" + getPackageName() + "/raw/binh_luan");
     }
 }
